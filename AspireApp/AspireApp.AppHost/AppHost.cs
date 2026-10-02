@@ -13,4 +13,6 @@ builder.AddProject<Projects.AspireApp_Web>("webfrontend")
     .WithReference(apiService)
     .WaitFor(apiService);
 
+builder.AddViteApp("frontend", "../frontend");
+
 builder.Build().Run();
