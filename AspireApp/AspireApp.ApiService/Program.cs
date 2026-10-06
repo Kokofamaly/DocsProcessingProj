@@ -1,4 +1,5 @@
 using Azure.Messaging.ServiceBus;
+using Azure.Storage.Blobs;
 using Microsoft.Extensions.Azure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -31,6 +32,7 @@ app.MapGet("/", () => "API service is running. Navigate to /weatherforecast to s
 
 app.MapGet("/weatherforecast", () =>
 {
+
     var forecast = Enumerable.Range(1, 5).Select(index =>
         new WeatherForecast
         (
