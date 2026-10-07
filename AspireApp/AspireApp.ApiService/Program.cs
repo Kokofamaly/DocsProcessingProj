@@ -16,6 +16,7 @@ builder.Services.AddOpenApi();
 builder.AddAzureBlobServiceClient("blobs");
 builder.AddAzureServiceBusClient("messaging");
 
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

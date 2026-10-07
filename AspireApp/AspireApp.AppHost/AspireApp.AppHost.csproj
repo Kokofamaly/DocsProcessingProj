@@ -6,12 +6,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AspireUseCliBundle>true</AspireUseCliBundle>
-    <UserSecretsId>f0ed7f55-2a31-4efb-91a7-7411f7d0650f</UserSecretsId>
+    <UserSecretsId>f0ed7f55-2a31-4efb-91a7-7411§f7d0650f</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\AspireApp.ApiService\AspireApp.ApiService.csproj" />
     <ProjectReference Include="..\AspireApp.Web\AspireApp.Web.csproj" />
+    <ProjectReference Include="..\AspireApp.Functions\AspireApp.Functions.csproj" />
   </ItemGroup>
 
   <ItemGroup>

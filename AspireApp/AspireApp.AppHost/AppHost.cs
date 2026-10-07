@@ -4,20 +4,23 @@ var cache = builder.AddRedis("cache");
 
 var blobs = builder.AddAzureStorage("storage").RunAsEmulator().AddBlobs("blobs");
 var serviceBus = builder.AddAzureServiceBus("messaging").RunAsEmulator();
-var queue = serviceBus.AddServiceBusQueue("");
-var topic = serviceBus.AddServiceBusTopic("");
+var queue = serviceBus.AddServiceBusQueue("documents-queue");
+var topic = serviceBus.AddServiceBusTopic("documents-topic");
 var subscription = topic.AddServiceBusSubscription("notification");
+
 
 var apiService = builder.AddProject<Projects.AspireApp_ApiService>("apiservice")
     .WithReference(blobs)
     .WaitFor(blobs)
     .WithReference(serviceBus)
     .WaitFor(serviceBus)
-    .WithReference(queue)
-    .WaitFor(queue)
-    .WithReference(topic)
-    .WithReference(subscription)
     .WithHttpHealthCheck("/health");
+
+var function = builder.AddAzureFunctionsProject<Projects.AspireApp_Functions>("function")
+    .WithReference(blobs)
+    .WithReference(serviceBus)
+    .WaitFor(apiService);
+
 
 // builder.AddProject<Projects.AspireApp_Web>("webfrontend")
 //     .WithExternalHttpEndpoints()
