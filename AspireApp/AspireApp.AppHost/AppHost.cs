@@ -6,7 +6,8 @@ var blobs = builder.AddAzureStorage("storage").RunAsEmulator().AddBlobs("blobs")
 var serviceBus = builder.AddAzureServiceBus("messaging").RunAsEmulator();
 var queue = serviceBus.AddServiceBusQueue("documents-queue");
 var topic = serviceBus.AddServiceBusTopic("documents-topic");
-var subscription = topic.AddServiceBusSubscription("notification");
+var notificationSubscription = topic.AddServiceBusSubscription("notification");
+var auditSubscription = topic.AddServiceBusSubscription("audit");
 
 
 var apiService = builder.AddProject<Projects.AspireApp_ApiService>("apiservice")

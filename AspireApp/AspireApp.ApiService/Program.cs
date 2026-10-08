@@ -30,15 +30,25 @@ if (app.Environment.IsDevelopment())
 app.MapGet("/", () => "API service is running. Navigate to /weatherforecast to see sample data.");
 app.MapGet("/documents", async () =>
 {
-    
+
 });
 
-app.MapPost("/documents", async (BlobServiceClient blobClient, ServiceBusClient serviceBusClient) =>
+app.MapPost(
+    "/documents", 
+    async (
+        BlobServiceClient blobClient, 
+        ServiceBusClient serviceBusClient, 
+        IFormFile file) =>
 {
-    
+
 });
 
-app.MapPost("/documents/{id}/reprocess", async (id) =>
+app.MapPost(
+    "/documents/{id}/reprocess", 
+    async (
+        string id, 
+        BlobServiceClient blobClient, 
+        ServiceBusClient serviceBusClient) =>
 {
     
 });
