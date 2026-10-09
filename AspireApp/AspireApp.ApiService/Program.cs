@@ -49,7 +49,7 @@ app.MapGet("/documents", async (AppDbContext db) =>
         UploadedAt = d.UploadedAt
     }).ToListAsync();
 
-    Results.Ok(docs);
+    return Results.Ok(docs);
 });
 
 app.MapPost(
@@ -75,7 +75,6 @@ app.MapPost(
         await db.SaveChangesAsync();
 
         var queueSender = serviceBusClient.CreateSender("documents-queue");
-        var topicSender = serviceBusClient.CreateSender("documents-topic");
 
         var messageRaw = new { 
             documentId = document.Id, 
@@ -86,9 +85,8 @@ app.MapPost(
         var messageJson = new ServiceBusMessage(JsonSerializer.Serialize(messageRaw));
 
         await queueSender.SendMessageAsync(messageJson);
-        await topicSender.SendMessageAsync(messageJson);
 
-        Results.Created();
+        return Results.Created();
     });
 
 app.MapPost(
