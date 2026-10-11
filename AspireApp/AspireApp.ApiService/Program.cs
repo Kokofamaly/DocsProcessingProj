@@ -93,11 +93,21 @@ app.MapPost(
     "/documents/{id}/reprocess", 
     async (
         string id, 
-        BlobServiceClient blobClient, 
         ServiceBusClient serviceBusClient,
         AppDbContext db) =>
 {
+    var doc = await db.Documents.FindAsync(Guid.Parse(id));
 
+    if(doc == null) return Results.InternalServerError();
+
+    var queueSender = serviceBusClient.CreateSender("documents-queue");
+
+    var messageRaw = new { documentId = doc.Id, blobName = doc.BlobName, uploadedAt = doc.UploadedAt};
+    var message = new ServiceBusMessage(JsonSerializer.Serialize(messageRaw));
+
+    await queueSender.SendMessageAsync(message);
+
+    return Results.Ok();
 });
 
 app.MapDefaultEndpoints();
