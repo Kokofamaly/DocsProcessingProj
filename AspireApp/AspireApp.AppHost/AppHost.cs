@@ -25,7 +25,8 @@ var apiService = builder.AddProject<Projects.AspireApp_ApiService>("apiservice")
 var function = builder.AddAzureFunctionsProject<Projects.AspireApp_Functions>("function")
     .WithReference(blobs)
     .WithReference(serviceBus)
-    .WaitFor(apiService);
+    .WaitFor(apiService)
+    .WithReference(postgresDb);
 
 // builder.AddProject<Projects.AspireApp_Web>("webfrontend")
 //     .WithExternalHttpEndpoints()
