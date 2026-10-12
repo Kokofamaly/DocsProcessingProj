@@ -10,6 +10,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../AspireApp.AuditService/AspireApp.AuditService.csproj" />
+    <ProjectReference Include="../AspireApp.NotificationService/AspireApp.NotificationService.csproj" />
     <ProjectReference Include="..\AspireApp.ApiService\AspireApp.ApiService.csproj" />
     <ProjectReference Include="..\AspireApp.Web\AspireApp.Web.csproj" />
     <ProjectReference Include="..\AspireApp.Functions\AspireApp.Functions.csproj" />

@@ -22,11 +22,16 @@ var apiService = builder.AddProject<Projects.AspireApp_ApiService>("apiservice")
     .WaitFor(postgresDb)
     .WithHttpHealthCheck("/health");
 
+
+
 var function = builder.AddAzureFunctionsProject<Projects.AspireApp_Functions>("function")
     .WithReference(blobs)
     .WithReference(serviceBus)
     .WaitFor(apiService)
     .WithReference(postgresDb);
+
+var notificationService = builder.AddProject<Projects.AspireApp_NotificationService>("notification-service").WithReference(serviceBus);
+var auditService = builder.AddProject<Projects.AspireApp_NotificationService>("audit-service").WithReference(serviceBus);
 
 // builder.AddProject<Projects.AspireApp_Web>("webfrontend")
 //     .WithExternalHttpEndpoints()
