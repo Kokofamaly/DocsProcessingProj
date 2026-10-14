@@ -30,7 +30,7 @@ var function = builder.AddAzureFunctionsProject<Projects.AspireApp_Functions>("f
     .WaitFor(apiService)
     .WithReference(postgresDb);
 
-var notificationService = builder.AddProject<Projects.AspireApp_NotificationService>("notification-service").WithReference(serviceBus).WithExternalHttpEndpoints();
+var notificationService = builder.AddProject<Projects.AspireApp_NotificationService>("notification-service").WithReference(serviceBus).WithReference(postgresDb).WaitFor(postgresDb).WaitFor(apiService).WithExternalHttpEndpoints();
 var auditService = builder.AddProject<Projects.AspireApp_NotificationService>("audit-service").WithReference(serviceBus);
 
 // builder.AddProject<Projects.AspireApp_Web>("webfrontend")

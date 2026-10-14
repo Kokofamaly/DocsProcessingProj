@@ -7,7 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHostedService<Worker>();
 
 builder.AddAzureServiceBusClient("messaging");
-builder.AddNpgsqlDbContext<AppDbContext>("postgres-db");
+builder.AddNpgsqlDbContext<AppDbContext>("documents-db");
 
 var app = builder.Build();
 

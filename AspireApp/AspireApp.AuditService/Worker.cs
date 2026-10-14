@@ -17,7 +17,7 @@ public class Worker(ILogger<Worker> logger, ServiceBusClient serviceBusClient) :
             return Task.CompletedTask;
         };
         
-        serviceBusProcessor.ProcessErrorAsync += ;
+        // serviceBusProcessor.ProcessErrorAsync += ;
 
         await serviceBusProcessor.StartProcessingAsync();
 

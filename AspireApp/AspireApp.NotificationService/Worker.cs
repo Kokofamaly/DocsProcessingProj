@@ -3,10 +3,11 @@ using Azure.Messaging.ServiceBus;
 
 namespace AspireApp.NotificationService;
 
-public class Worker(ILogger<Worker> logger, ServiceBusClient serviceBusClient, AppDbContext db) : BackgroundService
+public class Worker(ILogger<Worker> logger, ServiceBusClient serviceBusClient, IServiceScopeFactory scopeFactory) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        
         var serviceBusProcessor = serviceBusClient.CreateProcessor("documents-topic", "notification", new ServiceBusProcessorOptions
         {
             MaxConcurrentCalls = 1
@@ -14,6 +15,7 @@ public class Worker(ILogger<Worker> logger, ServiceBusClient serviceBusClient, A
 
         serviceBusProcessor.ProcessMessageAsync += async delegate (ProcessMessageEventArgs args)
         {
+            var db = scopeFactory.CreateScope().ServiceProvider.GetRequiredService<AppDbContext>();
             var messageBody = JsonSerializer.Deserialize<MessageDto>(args.Message.Body);
             var document = await db.Documents.FindAsync(Guid.Parse(messageBody.DocumentId));
 
