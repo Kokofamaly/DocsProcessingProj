@@ -1,16 +1,11 @@
 using AspireApp.AuditService;
 using Microsoft.AspNetCore.Builder;
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddHostedService<Worker>();
 
 builder.AddAzureServiceBusClient("messaging");
 
-var app = builder.Build();
+var host = builder.Build();
 
-app.MapGet("/notifications", async () =>
-{
-    
-});
-
-app.Run();
+host.Run();

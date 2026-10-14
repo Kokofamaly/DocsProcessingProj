@@ -1,9 +1,28 @@
 using AspireApp.NotificationService;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 
-var builder = Host.CreateApplicationBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHostedService<Worker>();
 
 builder.AddAzureServiceBusClient("messaging");
+builder.AddNpgsqlDbContext<AppDbContext>("postgres-db");
 
-var host = builder.Build();
-host.Run();
+var app = builder.Build();
+
+app.MapGet("/notifications", async (AppDbContext db) =>
+{
+    var notifications = await db.Notifications.AsNoTracking().ToListAsync();
+    return Results.Ok(notifications);
+});
+
+app.MapGet("/notifications/{page:int}", async (AppDbContext db, int page, int pageSize = 10) =>
+{
+    if(page < 1) return Results.NotFound();
+    var notifications = await db.Notifications.AsNoTracking().OrderBy(n => n.Id).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+
+    return Results.Ok(notifications);
+});
+
+app.Run();

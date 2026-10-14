@@ -28,6 +28,7 @@ builder.Build().Run();
 public class AppDbContext : DbContext
 {
     public DbSet<Document> Documents { get; set; } = null!;
+    public DbSet<ProcessedDocumentData> ProcessedDocumentDatas { get; set; } = null!;
     public AppDbContext() { }
     public AppDbContext(DbContextOptions<AppDbContext> options) : base (options) { }
 
@@ -35,6 +36,7 @@ public class AppDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.Entity<Document>().HasAlternateKey(d => d.BlobName);
+        modelBuilder.Entity<ProcessedDocumentData>().HasOne(p => p.Document).WithMany().HasForeignKey(p => p.DocumentId);
     }
 }
 
@@ -45,6 +47,13 @@ public class Document
     public string BlobName { get; set; } = string.Empty;
     public DocumentStatus Status { get; set; }
     public DateTimeOffset UploadedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public class ProcessedDocumentData
+{
+    public int Id { get; set; }
+    public Guid DocumentId { get; set; }
+    public Document Document { get; set; } = null!;
 }
 
 public enum DocumentStatus

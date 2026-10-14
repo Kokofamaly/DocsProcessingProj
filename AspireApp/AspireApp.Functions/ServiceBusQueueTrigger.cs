@@ -23,6 +23,8 @@ public class ServiceBusQueueTrigger
 
         // TODO;
         // Processing...
+        long fileSize = downloadedFile.Value.Content.ToMemory().Length;
+        db.ProcessedDocumentDatas.AddAsync();
         
         doc.Status = DocumentStatus.Completed;
         await db.SaveChangesAsync();
