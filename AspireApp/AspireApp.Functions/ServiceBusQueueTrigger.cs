@@ -21,10 +21,10 @@ public class ServiceBusQueueTrigger
 
         var downloadedFile = await blobClient.DownloadContentAsync();
 
-        // TODO;
-        // Processing...
         long fileSize = downloadedFile.Value.Content.ToMemory().Length;
-        db.ProcessedDocumentDatas.AddAsync();
+
+        var processedData = new ProcessedDocumentData{FileSize = fileSize, DocumentId = doc.Id, FileName = doc.FileName };
+        await db.ProcessedDocumentDatas.AddAsync(processedData);
         
         doc.Status = DocumentStatus.Completed;
         await db.SaveChangesAsync();
