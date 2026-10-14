@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 
 namespace AspireApp.NotificationService;
@@ -8,7 +9,12 @@ public class Worker(ILogger<Worker> logger, ServiceBusClient serviceBusClient) :
     {
         var serviceBusProcessor = serviceBusClient.CreateProcessor("documents-topic", "notification");
 
-        serviceBusProcessor.ProcessMessageAsync += ;
+        serviceBusProcessor.ProcessMessageAsync += delegate (ProcessMessageEventArgs args)
+        {
+            var messageBody = JsonSerializer.Deserialize<MessageDto>(args.Message.Body);
+
+            return Task.CompletedTask;
+        };
         serviceBusProcessor.ProcessErrorAsync += ;
 
 
@@ -26,4 +32,11 @@ public class Worker(ILogger<Worker> logger, ServiceBusClient serviceBusClient) :
             await Task.Delay(1000, stoppingToken);
         }
     }
+}
+
+public class MessageDto
+{
+    public string DocumentId { get; set; }
+    public string EventType { get; set; }
+    public DateTimeOffset ProcessedAt { get; set; }
 }
