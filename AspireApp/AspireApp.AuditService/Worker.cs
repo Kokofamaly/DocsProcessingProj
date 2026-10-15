@@ -10,14 +10,21 @@ public class Worker(ILogger<Worker> logger, ServiceBusClient serviceBusClient) :
     {
         var serviceBusProcessor = serviceBusClient.CreateProcessor("documents-topic", "audit");
 
-        serviceBusProcessor.ProcessMessageAsync += delegate (ProcessMessageEventArgs args)
+        serviceBusProcessor.ProcessMessageAsync += async delegate (ProcessMessageEventArgs args)
         {
             var messageBody = JsonSerializer.Deserialize<MessageDto>(args.Message.Body);
+            var auditLog = JsonSerializer.Serialize(new { documentId = messageBody.DocumentId, eventType = messageBody.EventType, timeStamp = DateTimeOffset.UtcNow});
+            logger.LogInformation(auditLog);
+            
+            await args.CompleteMessageAsync(args.Message, args.CancellationToken);
 
-            return Task.CompletedTask;
         };
         
-        // serviceBusProcessor.ProcessErrorAsync += ;
+        serviceBusProcessor.ProcessErrorAsync += delegate (ProcessErrorEventArgs args)
+        {
+            logger.LogError(args.Exception.Message);
+            return Task.CompletedTask;
+        };
 
         await serviceBusProcessor.StartProcessingAsync();
 

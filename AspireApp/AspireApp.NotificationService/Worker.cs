@@ -27,9 +27,10 @@ public class Worker(ILogger<Worker> logger, ServiceBusClient serviceBusClient, I
 
             await args.CompleteMessageAsync(args.Message, args.CancellationToken);
         };
-        serviceBusProcessor.ProcessErrorAsync += async delegate(ProcessErrorEventArgs args)
+        serviceBusProcessor.ProcessErrorAsync += delegate(ProcessErrorEventArgs args)
         {
             logger.LogError(args.Exception.Message);
+            return Task.CompletedTask;
         };
 
 
