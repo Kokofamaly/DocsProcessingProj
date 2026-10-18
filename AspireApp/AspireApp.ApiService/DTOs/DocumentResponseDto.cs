@@ -1,4 +1,4 @@
-using DocsProcessingProj.Api.Enums;
+using CommonData;
 
 namespace DocsProcessingProj.Api.DTOs;
 

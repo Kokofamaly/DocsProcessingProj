@@ -4,6 +4,7 @@ using Azure.Messaging.ServiceBus;
 using Azure.Storage.Blobs;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.EntityFrameworkCore;
+using CommonData;
 
 public class ServiceBusQueueTrigger(BlobServiceClient client, ServiceBusClient serviceBusClient, AppDbContext db)
 {
@@ -57,9 +58,3 @@ public class ServiceBusQueueTrigger(BlobServiceClient client, ServiceBusClient s
     }
 }
 
-public class MessageDto
-{
-    public Guid DocumentId { get; set; }
-    public string BlobName { get; set; }
-    public DateTimeOffset UploadedAt { get; set; }
-}

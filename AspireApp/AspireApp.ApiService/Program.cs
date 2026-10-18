@@ -1,11 +1,10 @@
 using Azure.Messaging.ServiceBus;
 using Azure.Storage.Blobs;
-using DocsProcessingProj.Api.Data;
-using DocsProcessingProj.Api.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Azure;
 using System.Text.Json;
 using DocsProcessingProj.Api.DTOs;
+using CommonData;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -86,7 +85,7 @@ app.MapPost(
         {
             Id = Guid.NewGuid(),
             FileName = file.FileName,
-            Status = DocsProcessingProj.Api.Enums.DocumentStatus.Pending,
+            Status = DocumentStatus.Pending,
         };
         document.BlobName = document.Id.ToString();
         
