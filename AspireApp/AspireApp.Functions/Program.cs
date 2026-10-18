@@ -9,11 +9,13 @@ using OpenTelemetry;
 
 var builder = FunctionsApplication.CreateBuilder(args);
 
-builder.ConfigureFunctionsWebApplication();
 
 builder.AddAzureServiceBusClient("messaging");
 builder.AddAzureBlobServiceClient("blobs");
 builder.AddNpgsqlDbContext<AppDbContext>("documents-db");
+
+builder.ConfigureFunctionsWebApplication();
+
 
 if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING")))
 {

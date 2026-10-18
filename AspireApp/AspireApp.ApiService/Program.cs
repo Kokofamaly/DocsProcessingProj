@@ -21,12 +21,31 @@ builder.Services.AddOpenApi();
 builder.AddAzureBlobServiceClient("blobs");
 builder.AddAzureServiceBusClient("messaging");
 builder.AddNpgsqlDbContext<AppDbContext>("documents-db");
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy
+            .AllowAnyOrigin()
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
 
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider
+        .GetRequiredService<AppDbContext>();
+
+    await db.Database.EnsureCreatedAsync();
+}
+
 // Configure the HTTP request pipeline.
 app.UseExceptionHandler();
+app.UseCors();
 
 if (app.Environment.IsDevelopment())
 {
@@ -36,6 +55,7 @@ if (app.Environment.IsDevelopment())
 var container = app.Services.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documents");
 
 await container.CreateIfNotExistsAsync();
+
 
 app.MapGet("/", () => "API service is running. Navigate to /weatherforecast to see sample data.");
 
@@ -50,7 +70,7 @@ app.MapGet("/documents", async (AppDbContext db) =>
     }).ToListAsync();
 
     return Results.Ok(docs);
-});
+}).DisableAntiforgery();
 
 app.MapPost(
     "/documents", 
@@ -74,6 +94,12 @@ app.MapPost(
         await db.Documents.AddAsync(document);
         await db.SaveChangesAsync();
 
+
+        Console.WriteLine($"API saved DocumentId: {document.Id}");
+        Console.WriteLine(
+        $"API database: {db.Database.GetDbConnection().DataSource} / " +
+        $"{db.Database.GetDbConnection().Database}");
+
         var queueSender = serviceBusClient.CreateSender("documents-queue");
 
         var messageRaw = new { 
@@ -87,7 +113,7 @@ app.MapPost(
         await queueSender.SendMessageAsync(messageJson);
 
         return Results.Created();
-    });
+    }).DisableAntiforgery();
 
 app.MapPost(
     "/documents/{id}/reprocess", 
@@ -108,7 +134,7 @@ app.MapPost(
     await queueSender.SendMessageAsync(message);
 
     return Results.Ok();
-});
+}).DisableAntiforgery();
 
 app.MapDefaultEndpoints();
 
