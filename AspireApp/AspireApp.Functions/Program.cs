@@ -11,9 +11,9 @@ using CommonData;
 var builder = FunctionsApplication.CreateBuilder(args);
 
 
-builder.AddAzureServiceBusClient("messaging");
-builder.AddAzureBlobServiceClient("blobs");
-builder.AddNpgsqlDbContext<AppDbContext>("documents-db");
+builder.AddAzureServiceBusClient(AspireResourceNames.ServiceBus);
+builder.AddAzureBlobServiceClient(AspireResourceNames.Blobs);
+builder.AddNpgsqlDbContext<AppDbContext>(AspireResourceNames.Blobs);
 
 builder.ConfigureFunctionsWebApplication();
 

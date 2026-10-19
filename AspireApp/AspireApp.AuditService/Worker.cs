@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using Azure.Messaging.ServiceBus;
+using CommonData;
 
 namespace AspireApp.AuditService;
 
@@ -8,7 +9,7 @@ public class Worker(ILogger<Worker> logger, ServiceBusClient serviceBusClient) :
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var serviceBusProcessor = serviceBusClient.CreateProcessor("documents-topic", "audit");
+        var serviceBusProcessor = serviceBusClient.CreateProcessor(AspireResourceNames.ServicBusTopic, AspireResourceNames.ServicBusTopicAuditSubscription);
 
         serviceBusProcessor.ProcessMessageAsync += async delegate (ProcessMessageEventArgs args)
         {
@@ -35,9 +36,3 @@ public class Worker(ILogger<Worker> logger, ServiceBusClient serviceBusClient) :
     }
 }
 
-public class MessageDto
-{
-    public string DocumentId { get; set; }
-    public string EventType { get; set; }
-    public DateTimeOffset ProcessedAt { get; set; }
-}

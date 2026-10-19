@@ -9,7 +9,7 @@ using CommonData;
 public class ServiceBusQueueTrigger(BlobServiceClient client, ServiceBusClient serviceBusClient, AppDbContext db)
 {
     [Function("ProcessDocumentTrigger")]
-    public async Task Run([ServiceBusTrigger("documents-queue", Connection = "messaging")] ServiceBusReceivedMessage message, FunctionContext context)
+    public async Task Run([ServiceBusTrigger(AspireResourceNames.ServiceBusQueue, Connection = AspireResourceNames.ServiceBus)] ServiceBusReceivedMessage message, FunctionContext context)
     {
         var body = message.Body.ToString();
 
@@ -31,7 +31,7 @@ public class ServiceBusQueueTrigger(BlobServiceClient client, ServiceBusClient s
 
         await db.SaveChangesAsync();
 
-        var container = client.GetBlobContainerClient("documents");
+        var container = client.GetBlobContainerClient(AspireResourceNames.BlobContainerClient);
         var blobClient = container.GetBlobClient(json.BlobName);
 
         var downloadedFile = await blobClient.DownloadContentAsync();
@@ -52,7 +52,7 @@ public class ServiceBusQueueTrigger(BlobServiceClient client, ServiceBusClient s
         };
         
         var messageJsonToSend = JsonSerializer.Serialize(messageRawToSend);
-        var sender = serviceBusClient.CreateSender("documents-topic");
+        var sender = serviceBusClient.CreateSender(AspireResourceNames.ServicBusTopic);
         
         await sender.SendMessageAsync(new ServiceBusMessage(messageJsonToSend));
     }

@@ -17,9 +17,9 @@ builder.Services.AddProblemDetails();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
-builder.AddAzureBlobServiceClient("blobs");
-builder.AddAzureServiceBusClient("messaging");
-builder.AddNpgsqlDbContext<AppDbContext>("documents-db");
+builder.AddAzureBlobServiceClient(AspireResourceNames.Blobs);
+builder.AddAzureServiceBusClient(AspireResourceNames.ServiceBus);
+builder.AddNpgsqlDbContext<AppDbContext>(AspireResourceNames.Database);
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -89,7 +89,7 @@ app.MapPost(
         };
         document.BlobName = document.Id.ToString();
         
-        await blobClient.GetBlobContainerClient("documents").UploadBlobAsync($"{document.BlobName}", fileContent);
+        await blobClient.GetBlobContainerClient(AspireResourceNames.BlobContainerClient).UploadBlobAsync($"{document.BlobName}", fileContent);
         await db.Documents.AddAsync(document);
         await db.SaveChangesAsync();
 
@@ -99,7 +99,7 @@ app.MapPost(
         $"API database: {db.Database.GetDbConnection().DataSource} / " +
         $"{db.Database.GetDbConnection().Database}");
 
-        var queueSender = serviceBusClient.CreateSender("documents-queue");
+        var queueSender = serviceBusClient.CreateSender(AspireResourceNames.ServiceBusQueue);
 
         var messageRaw = new { 
             documentId = document.Id, 
@@ -125,7 +125,7 @@ app.MapPost(
 
     if(doc == null) return Results.InternalServerError();
 
-    var queueSender = serviceBusClient.CreateSender("documents-queue");
+    var queueSender = serviceBusClient.CreateSender(AspireResourceNames.ServiceBusQueue);
 
     var messageRaw = new { documentId = doc.Id, blobName = doc.BlobName, uploadedAt = doc.UploadedAt};
     var message = new ServiceBusMessage(JsonSerializer.Serialize(messageRaw));

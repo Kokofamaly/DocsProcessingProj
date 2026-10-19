@@ -9,7 +9,7 @@ public class Worker(ILogger<Worker> logger, ServiceBusClient serviceBusClient, I
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         
-        var serviceBusProcessor = serviceBusClient.CreateProcessor("documents-topic", "notification", new ServiceBusProcessorOptions
+        var serviceBusProcessor = serviceBusClient.CreateProcessor(AspireResourceNames.ServicBusTopic, AspireResourceNames.ServicBusTopicNotificationSubscription, new ServiceBusProcessorOptions
         {
             MaxConcurrentCalls = 1
         });

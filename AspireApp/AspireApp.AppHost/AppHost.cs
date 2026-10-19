@@ -1,16 +1,19 @@
+using CommonData;
+
 var builder = DistributedApplication.CreateBuilder(args);
 
-var cache = builder.AddRedis("cache");
+// var cache = builder.AddRedis("cache");
+
 
 var postgres = builder.AddPostgres("postgres");
-var postgresDb = postgres.AddDatabase("documents-db");
+var postgresDb = postgres.AddDatabase(AspireResourceNames.Database);
 
-var blobs = builder.AddAzureStorage("storage").RunAsEmulator().AddBlobs("blobs");
-var serviceBus = builder.AddAzureServiceBus("messaging").RunAsEmulator();
-var queue = serviceBus.AddServiceBusQueue("documents-queue");
-var topic = serviceBus.AddServiceBusTopic("documents-topic");
-var notificationSubscription = topic.AddServiceBusSubscription("notification");
-var auditSubscription = topic.AddServiceBusSubscription("audit");
+var blobs = builder.AddAzureStorage("storage").RunAsEmulator().AddBlobs(AspireResourceNames.Blobs);
+var serviceBus = builder.AddAzureServiceBus(AspireResourceNames.ServiceBus).RunAsEmulator();
+var queue = serviceBus.AddServiceBusQueue(AspireResourceNames.ServiceBusQueue);
+var topic = serviceBus.AddServiceBusTopic(AspireResourceNames.ServicBusTopic);
+var notificationSubscription = topic.AddServiceBusSubscription(AspireResourceNames.ServicBusTopicNotificationSubscription);
+var auditSubscription = topic.AddServiceBusSubscription(AspireResourceNames.ServicBusTopicAuditSubscription);
 
 
 var apiService = builder.AddProject<Projects.AspireApp_ApiService>("apiservice")
