@@ -9,11 +9,12 @@ public class Worker(ILogger<Worker> logger, ServiceBusClient serviceBusClient) :
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        try{
         var serviceBusProcessor = serviceBusClient.CreateProcessor(AspireResourceNames.ServicBusTopic, AspireResourceNames.ServicBusTopicAuditSubscription);
 
         serviceBusProcessor.ProcessMessageAsync += async delegate (ProcessMessageEventArgs args)
         {
-            var messageBody = JsonSerializer.Deserialize<MessageDto>(args.Message.Body);
+            var messageBody = JsonSerializer.Deserialize<MessageDto>(args.Message.Body, new JsonSerializerOptions{ PropertyNameCaseInsensitive = true });
             var auditLog = JsonSerializer.Serialize(new { documentId = messageBody.DocumentId, eventType = messageBody.EventType, timeStamp = DateTimeOffset.UtcNow});
             logger.LogInformation(auditLog);
             
@@ -30,7 +31,12 @@ public class Worker(ILogger<Worker> logger, ServiceBusClient serviceBusClient) :
         await serviceBusProcessor.StartProcessingAsync();
 
 
-        await Task.Delay(Timeout.Infinite, stoppingToken);
+        await Task.Delay(Timeout.Infinite, stoppingToken);}
+        catch(Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+            throw;
+        }
 
 
     }
