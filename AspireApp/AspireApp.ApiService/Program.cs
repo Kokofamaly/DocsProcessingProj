@@ -17,6 +17,7 @@ builder.Services.AddProblemDetails();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+
 builder.AddAzureBlobServiceClient(AspireResourceNames.Blobs);
 builder.AddAzureServiceBusClient(AspireResourceNames.ServiceBus);
 builder.AddNpgsqlDbContext<AppDbContext>(AspireResourceNames.Database);
@@ -99,7 +100,7 @@ app.MapPost(
         $"API database: {db.Database.GetDbConnection().DataSource} / " +
         $"{db.Database.GetDbConnection().Database}");
 
-        var queueSender = serviceBusClient.CreateSender(AspireResourceNames.ServiceBusQueue);
+        await using var queueSender = serviceBusClient.CreateSender(AspireResourceNames.ServiceBusQueue);
 
         var messageRaw = new { 
             documentId = document.Id, 
@@ -124,8 +125,10 @@ app.MapPost(
     var doc = await db.Documents.FindAsync(Guid.Parse(id));
 
     if(doc == null) return Results.InternalServerError();
-
-    var queueSender = serviceBusClient.CreateSender(AspireResourceNames.ServiceBusQueue);
+    doc.Status = DocumentStatus.Pending;
+    await db.SaveChangesAsync();
+    
+    await using var queueSender = serviceBusClient.CreateSender(AspireResourceNames.ServiceBusQueue);
 
     var messageRaw = new { documentId = doc.Id, blobName = doc.BlobName, uploadedAt = doc.UploadedAt};
     var message = new ServiceBusMessage(JsonSerializer.Serialize(messageRaw));
@@ -135,6 +138,28 @@ app.MapPost(
     return Results.Ok();
 }).DisableAntiforgery();
 
+app.MapGet("/dlq", async (ServiceBusClient serviceBusClient) =>
+{
+        await using var rec = serviceBusClient.CreateReceiver(
+        AspireResourceNames.ServiceBusQueue,
+        new ServiceBusReceiverOptions
+        {
+            SubQueue = SubQueue.DeadLetter
+        });
+
+        var dlqMessages = await rec.PeekMessagesAsync(10);
+
+
+        if(dlqMessages is null) return Results.Ok(new { message = "DLQ IS NULL"});
+        
+        foreach(var dlq in dlqMessages){
+            Console.WriteLine($"DLQ REASON::{dlq?.DeadLetterReason ?? "DLQ is empty"}");
+        }
+
+        var result = dlqMessages.Select(dlq => new { dlqMessageId = dlq.MessageId, dlqReason = dlq.DeadLetterReason}).ToList();
+        return Results.Ok(result);
+
+}).DisableAntiforgery();
 app.MapDefaultEndpoints();
 
 app.Run();

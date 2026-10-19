@@ -13,7 +13,7 @@ var builder = FunctionsApplication.CreateBuilder(args);
 
 builder.AddAzureServiceBusClient(AspireResourceNames.ServiceBus);
 builder.AddAzureBlobServiceClient(AspireResourceNames.Blobs);
-builder.AddNpgsqlDbContext<AppDbContext>(AspireResourceNames.Blobs);
+builder.AddNpgsqlDbContext<AppDbContext>(AspireResourceNames.Database);
 
 builder.ConfigureFunctionsWebApplication();
 

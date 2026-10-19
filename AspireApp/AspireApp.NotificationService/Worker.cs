@@ -17,7 +17,7 @@ public class Worker(ILogger<Worker> logger, ServiceBusClient serviceBusClient, I
         serviceBusProcessor.ProcessMessageAsync += async delegate (ProcessMessageEventArgs args)
         {
             var db = scopeFactory.CreateScope().ServiceProvider.GetRequiredService<AppDbContext>();
-            var messageBody = JsonSerializer.Deserialize<MessageDto>(args.Message.Body);
+            var messageBody = JsonSerializer.Deserialize<MessageDto>(args.Message.Body, new JsonSerializerOptions{ PropertyNameCaseInsensitive = true });
             var document = await db.Documents.FindAsync(Guid.Parse(messageBody.DocumentId));
 
             var notificationMessage = $"{document.FileName} was processed.";

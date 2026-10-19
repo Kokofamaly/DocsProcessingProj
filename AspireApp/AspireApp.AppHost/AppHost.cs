@@ -10,7 +10,10 @@ var postgresDb = postgres.AddDatabase(AspireResourceNames.Database);
 
 var blobs = builder.AddAzureStorage("storage").RunAsEmulator().AddBlobs(AspireResourceNames.Blobs);
 var serviceBus = builder.AddAzureServiceBus(AspireResourceNames.ServiceBus).RunAsEmulator();
-var queue = serviceBus.AddServiceBusQueue(AspireResourceNames.ServiceBusQueue);
+var queue = serviceBus.AddServiceBusQueue(AspireResourceNames.ServiceBusQueue).WithProperties(q =>
+{
+    q.MaxDeliveryCount = 3;
+});
 var topic = serviceBus.AddServiceBusTopic(AspireResourceNames.ServicBusTopic);
 var notificationSubscription = topic.AddServiceBusSubscription(AspireResourceNames.ServicBusTopicNotificationSubscription);
 var auditSubscription = topic.AddServiceBusSubscription(AspireResourceNames.ServicBusTopicAuditSubscription);
