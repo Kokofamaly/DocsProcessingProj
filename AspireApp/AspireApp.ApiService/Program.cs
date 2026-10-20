@@ -124,7 +124,8 @@ app.MapPost(
 {
     var doc = await db.Documents.FindAsync(Guid.Parse(id));
 
-    if(doc == null) return Results.InternalServerError();
+    if(doc == null) return Results.NotFound();
+
     doc.Status = DocumentStatus.Pending;
     await db.SaveChangesAsync();
     
@@ -151,7 +152,7 @@ app.MapGet("/dlq", async (ServiceBusClient serviceBusClient) =>
 
 
         if(dlqMessages is null) return Results.Ok(new { message = "DLQ IS NULL"});
-        
+
         foreach(var dlq in dlqMessages){
             Console.WriteLine($"DLQ REASON::{dlq?.DeadLetterReason ?? "DLQ is empty"}");
         }
