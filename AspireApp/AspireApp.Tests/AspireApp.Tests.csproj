@@ -23,6 +23,9 @@
 
   <ItemGroup>
     <ProjectReference Include="../AspireApp.ApiService/AspireApp.ApiService.csproj" />
+    <ProjectReference Include="../AspireApp.AuditService/AspireApp.AuditService.csproj" />
+    <ProjectReference Include="../AspireApp.Functions/AspireApp.Functions.csproj" />
+    <ProjectReference Include="../AspireApp.NotificationService/AspireApp.NotificationService.csproj" />
     <ProjectReference Include="..\AspireApp.AppHost\AspireApp.AppHost.csproj" />
   </ItemGroup>
 

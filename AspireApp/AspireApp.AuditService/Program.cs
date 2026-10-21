@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Builder;
 using CommonData;
 
 var builder = Host.CreateApplicationBuilder(args);
+builder.Services.AddSingleton<AuditProcessor>();
 builder.Services.AddHostedService<Worker>();
+
 
 builder.AddAzureServiceBusClient(AspireResourceNames.ServiceBus);
 

@@ -14,20 +14,15 @@ public class Worker(ILogger<Worker> logger, ServiceBusClient serviceBusClient, I
             MaxConcurrentCalls = 1
         });
 
-        serviceBusProcessor.ProcessMessageAsync += async delegate (ProcessMessageEventArgs args)
-        {
-            var db = scopeFactory.CreateScope().ServiceProvider.GetRequiredService<AppDbContext>();
-            var messageBody = JsonSerializer.Deserialize<MessageDto>(args.Message.Body, new JsonSerializerOptions{ PropertyNameCaseInsensitive = true });
-            var document = await db.Documents.FindAsync(Guid.Parse(messageBody.DocumentId));
+        serviceBusProcessor.ProcessMessageAsync += async args =>
+{
+            using var scope = scopeFactory.CreateScope();
+            var processor = scope.ServiceProvider.GetRequiredService<NotificationProcessor>();
 
-            var notificationMessage = $"{document.FileName} was processed.";
-            var notification = new Notification{ NotificationMessage = notificationMessage };
-
-            await db.Notifications.AddAsync(notification);
-            await db.SaveChangesAsync(args.CancellationToken);
-
+            await processor.ProcessAsync(args.Message, args.CancellationToken);
             await args.CompleteMessageAsync(args.Message, args.CancellationToken);
         };
+    
         serviceBusProcessor.ProcessErrorAsync += delegate(ProcessErrorEventArgs args)
         {
             logger.LogError(args.Exception.Message);

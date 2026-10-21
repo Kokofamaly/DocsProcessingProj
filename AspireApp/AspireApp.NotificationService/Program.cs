@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using CommonData;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddScoped<NotificationProcessor>();
 builder.Services.AddHostedService<Worker>();
 
 builder.AddAzureServiceBusClient(AspireResourceNames.ServiceBus);
