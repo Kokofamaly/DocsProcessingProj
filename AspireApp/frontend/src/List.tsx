@@ -1,5 +1,6 @@
-import { useEffect, useState, useOptimistic } from "react";
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import './List.css';
 
 export function List() {
 
@@ -25,7 +26,7 @@ export function List() {
             doc => doc.status === 0 || doc.status === 1
         );
 
-        return hasActiveDocuments ? 10 : false;
+        return hasActiveDocuments ? 100 : false;
     }});
     
     const reprocessMutation = useMutation({

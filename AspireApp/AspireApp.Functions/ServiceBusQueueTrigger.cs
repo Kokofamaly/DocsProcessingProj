@@ -5,29 +5,22 @@ using Azure.Storage.Blobs;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.EntityFrameworkCore;
 using CommonData;
+using Microsoft.Extensions.Logging;
 
-public class ServiceBusQueueTrigger(BlobServiceClient client, ServiceBusClient serviceBusClient, AppDbContext db)
+public class ServiceBusQueueTrigger(BlobServiceClient client, ServiceBusClient serviceBusClient, AppDbContext db, ILogger<ServiceBusQueueTrigger> logger)
 {
     [Function("ProcessDocumentTrigger")]
     public async Task Run([ServiceBusTrigger(AspireResourceNames.ServiceBusQueue, Connection = AspireResourceNames.ServiceBus)] ServiceBusReceivedMessage message, FunctionContext context)
     {
         
-            var body = message.Body.ToString();
+        var body = message.Body.ToString();
+        var json = JsonSerializer.Deserialize<MessageDto>(body, new JsonSerializerOptions{PropertyNameCaseInsensitive = true});
+        var doc = await db.Documents.FindAsync(json.DocumentId);
+        
+        try
+        {
+            if(doc == null) throw new Exception($"Document {json.DocumentId} not found");
 
-            Console.WriteLine($"BODY TO JSON: {body}");
-
-            var json = JsonSerializer.Deserialize<MessageDto>(body, new JsonSerializerOptions{PropertyNameCaseInsensitive = true});
-            if(json is null) throw new Exception("JSON IS NULL");
-
-            Console.WriteLine($"Functions received DocumentId: {json.DocumentId}");
-            Console.WriteLine(
-                $"Functions database: {db.Database.GetDbConnection().DataSource} / " +
-                $"{db.Database.GetDbConnection().Database}");
-
-            var doc = await db.Documents.FindAsync(json.DocumentId);
-
-            if(doc is null) throw new Exception("DOC IS NULL");
-        try{
             doc.Status = DocumentStatus.Processing;
             await db.SaveChangesAsync();
 
@@ -38,8 +31,8 @@ public class ServiceBusQueueTrigger(BlobServiceClient client, ServiceBusClient s
 
             var downloadedFile = await blobClient.DownloadContentAsync();
 
+            // Processing file
             long fileSize = downloadedFile.Value.Content.ToMemory().Length;
-
             var processedData = new ProcessedDocumentData{FileSize = fileSize, DocumentId = doc.Id, FileName = doc.FileName };
             await db.ProcessedDocumentDatas.AddAsync(processedData);
             
@@ -62,9 +55,9 @@ public class ServiceBusQueueTrigger(BlobServiceClient client, ServiceBusClient s
         {
             if(message.DeliveryCount == 3) {
                 doc.Status = DocumentStatus.Failed;
-                Console.WriteLine($"{doc.FileName} is failed to process.");
+                logger.LogError($"{doc.FileName} is failed to process.");
                 }
-            Console.WriteLine($"ATTEMPT #{message.DeliveryCount}: Failed to process");
+            logger.LogError($"ATTEMPT #{message.DeliveryCount}: Failed to process");
             await db.SaveChangesAsync();
 
             throw;

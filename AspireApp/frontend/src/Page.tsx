@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import './Page.css';
 
 
 export function Page( {children} : {children: ReactNode} ) {

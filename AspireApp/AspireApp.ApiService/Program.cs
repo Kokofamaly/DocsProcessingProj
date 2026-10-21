@@ -5,6 +5,7 @@ using Microsoft.Extensions.Azure;
 using System.Text.Json;
 using DocsProcessingProj.Api.DTOs;
 using CommonData;
+using DocsProcessingProj.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,6 +22,8 @@ builder.Services.AddOpenApi();
 builder.AddAzureBlobServiceClient(AspireResourceNames.Blobs);
 builder.AddAzureServiceBusClient(AspireResourceNames.ServiceBus);
 builder.AddNpgsqlDbContext<AppDbContext>(AspireResourceNames.Database);
+builder.Services.AddScoped<DocumentService>();
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -52,91 +55,33 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-var container = app.Services.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documents");
+var container = app.Services.GetRequiredService<BlobServiceClient>().GetBlobContainerClient(AspireResourceNames.BlobContainerClient);
 
 await container.CreateIfNotExistsAsync();
 
 
-app.MapGet("/", () => "API service is running. Navigate to /weatherforecast to see sample data.");
-
-app.MapGet("/documents", async (AppDbContext db) =>
+app.MapGet("/documents", async (DocumentService docService) =>
 {
-    var docs = await db.Documents.Select(d => new DocumentResponseDto
-    {
-        Id = d.Id,
-        FileName = d.FileName,
-        Status = d.Status,
-        UploadedAt = d.UploadedAt
-    }).ToListAsync();
+    var docs = await docService.GetDocumentsAsync();
 
     return Results.Ok(docs);
 }).DisableAntiforgery();
 
 app.MapPost(
     "/documents", 
-    async (
-        BlobServiceClient blobClient, 
-        ServiceBusClient serviceBusClient, 
-        IFormFile file, 
-        AppDbContext db) =>
+    async (DocumentService docService, IFormFile file) =>
     {
-        using var fileContent = file.OpenReadStream();
-
-        var document = new Document
-        {
-            Id = Guid.NewGuid(),
-            FileName = file.FileName,
-            Status = DocumentStatus.Pending,
-        };
-        document.BlobName = document.Id.ToString();
-        
-        await blobClient.GetBlobContainerClient(AspireResourceNames.BlobContainerClient).UploadBlobAsync($"{document.BlobName}", fileContent);
-        await db.Documents.AddAsync(document);
-        await db.SaveChangesAsync();
-
-
-        Console.WriteLine($"API saved DocumentId: {document.Id}");
-        Console.WriteLine(
-        $"API database: {db.Database.GetDbConnection().DataSource} / " +
-        $"{db.Database.GetDbConnection().Database}");
-
-        await using var queueSender = serviceBusClient.CreateSender(AspireResourceNames.ServiceBusQueue);
-
-        var messageRaw = new { 
-            documentId = document.Id, 
-            blobName = document.BlobName, 
-            uploadedAt = document.UploadedAt 
-        };
-
-        var messageJson = new ServiceBusMessage(JsonSerializer.Serialize(messageRaw));
-
-        await queueSender.SendMessageAsync(messageJson);
-
+        await docService.PostDocumentAsync(file);
         return Results.Created();
     }).DisableAntiforgery();
 
 app.MapPost(
     "/documents/{id}/reprocess", 
-    async (
-        string id, 
-        ServiceBusClient serviceBusClient,
-        AppDbContext db) =>
+    async (string id, DocumentService docService) =>
 {
-    var doc = await db.Documents.FindAsync(Guid.Parse(id));
+    var doc = await docService.ReprocessFileAsync(id);
 
-    if(doc == null) return Results.NotFound();
-
-    doc.Status = DocumentStatus.Pending;
-    await db.SaveChangesAsync();
-    
-    await using var queueSender = serviceBusClient.CreateSender(AspireResourceNames.ServiceBusQueue);
-
-    var messageRaw = new { documentId = doc.Id, blobName = doc.BlobName, uploadedAt = doc.UploadedAt};
-    var message = new ServiceBusMessage(JsonSerializer.Serialize(messageRaw));
-
-    await queueSender.SendMessageAsync(message);
-
-    return Results.Ok();
+    return doc is null ? Results.NotFound() : Results.Ok();
 }).DisableAntiforgery();
 
 app.MapGet("/dlq", async (ServiceBusClient serviceBusClient) =>
@@ -153,14 +98,11 @@ app.MapGet("/dlq", async (ServiceBusClient serviceBusClient) =>
 
         if(dlqMessages is null) return Results.Ok(new { message = "DLQ IS NULL"});
 
-        foreach(var dlq in dlqMessages){
-            Console.WriteLine($"DLQ REASON::{dlq?.DeadLetterReason ?? "DLQ is empty"}");
-        }
-
         var result = dlqMessages.Select(dlq => new { dlqMessageId = dlq.MessageId, dlqReason = dlq.DeadLetterReason}).ToList();
         return Results.Ok(result);
 
 }).DisableAntiforgery();
+
 app.MapDefaultEndpoints();
 
 app.Run();

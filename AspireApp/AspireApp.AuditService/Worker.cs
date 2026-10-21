@@ -9,32 +9,34 @@ public class Worker(ILogger<Worker> logger, ServiceBusClient serviceBusClient) :
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        try{
-        var serviceBusProcessor = serviceBusClient.CreateProcessor(AspireResourceNames.ServicBusTopic, AspireResourceNames.ServicBusTopicAuditSubscription);
-
-        serviceBusProcessor.ProcessMessageAsync += async delegate (ProcessMessageEventArgs args)
+        try 
         {
-            var messageBody = JsonSerializer.Deserialize<MessageDto>(args.Message.Body, new JsonSerializerOptions{ PropertyNameCaseInsensitive = true });
-            var auditLog = JsonSerializer.Serialize(new { documentId = messageBody.DocumentId, eventType = messageBody.EventType, timeStamp = DateTimeOffset.UtcNow});
-            logger.LogInformation(auditLog);
+            var serviceBusProcessor = serviceBusClient.CreateProcessor(AspireResourceNames.ServicBusTopic, AspireResourceNames.ServicBusTopicAuditSubscription);
+
+            serviceBusProcessor.ProcessMessageAsync += async delegate (ProcessMessageEventArgs args)
+            {
+                var messageBody = JsonSerializer.Deserialize<MessageDto>(args.Message.Body, new JsonSerializerOptions{ PropertyNameCaseInsensitive = true });
+                var auditLog = JsonSerializer.Serialize(new { documentId = messageBody.DocumentId, eventType = messageBody.EventType, timeStamp = DateTimeOffset.UtcNow});
+                logger.LogInformation(auditLog);
+                
+                await args.CompleteMessageAsync(args.Message, args.CancellationToken);
+
+            };
             
-            await args.CompleteMessageAsync(args.Message, args.CancellationToken);
+            serviceBusProcessor.ProcessErrorAsync += delegate (ProcessErrorEventArgs args)
+            {
+                logger.LogError(args.Exception.Message);
+                return Task.CompletedTask;
+            };
 
-        };
-        
-        serviceBusProcessor.ProcessErrorAsync += delegate (ProcessErrorEventArgs args)
-        {
-            logger.LogError(args.Exception.Message);
-            return Task.CompletedTask;
-        };
-
-        await serviceBusProcessor.StartProcessingAsync();
+            await serviceBusProcessor.StartProcessingAsync();
 
 
-        await Task.Delay(Timeout.Infinite, stoppingToken);}
+            await Task.Delay(Timeout.Infinite, stoppingToken);
+        }
         catch(Exception ex)
         {
-            Console.WriteLine(ex.Message);
+            logger.LogError(ex.Message);
             throw;
         }
 
