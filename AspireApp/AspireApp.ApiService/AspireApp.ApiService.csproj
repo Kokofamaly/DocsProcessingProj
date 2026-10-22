@@ -16,6 +16,7 @@
     <PackageReference Include="Aspire.Azure.Storage.Blobs" Version="13.6.2" />
     <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.6.2" />
     <PackageReference Include="Azure.Storage.Blobs" Version="12.30.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" Version="2.3.13" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Azure" Version="1.14.1" />
   </ItemGroup>

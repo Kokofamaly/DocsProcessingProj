@@ -6,6 +6,11 @@ using System.Text.Json;
 using DocsProcessingProj.Api.DTOs;
 using CommonData;
 using DocsProcessingProj.Api.Services;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,20 +23,36 @@ builder.Services.AddProblemDetails();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options =>
+{
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Events.OnRedirectToLogin = context => { context.Response.StatusCode = 401; return Task.CompletedTask; };
+    options.Events.OnRedirectToAccessDenied = context => { context.Response.StatusCode = 403; return Task.CompletedTask; };
+});
+builder.Services.AddAuthorizationBuilder()
+.SetFallbackPolicy(
+    new AuthorizationPolicyBuilder()
+    .RequireAuthenticatedUser()
+    .Build()).AddPolicy("AdminOnly", p => p.RequireRole("Admin"));
+
+builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
 
 builder.AddAzureBlobServiceClient(AspireResourceNames.Blobs);
 builder.AddAzureServiceBusClient(AspireResourceNames.ServiceBus);
 builder.AddNpgsqlDbContext<AppDbContext>(AspireResourceNames.Database);
 builder.Services.AddScoped<DocumentService>();
+builder.Services.AddAntiforgery();
 
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
         policy
-            .AllowAnyOrigin()
+            .WithOrigins(.)
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 
@@ -49,23 +70,81 @@ using (var scope = app.Services.CreateScope())
 // Configure the HTTP request pipeline.
 app.UseExceptionHandler();
 app.UseCors();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseAntiforgery();
+
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.MapOpenApi().AllowAnonymous();
 }
 
 var container = app.Services.GetRequiredService<BlobServiceClient>().GetBlobContainerClient(AspireResourceNames.BlobContainerClient);
 
 await container.CreateIfNotExistsAsync();
 
+app.MapPost("/register", async (RegisterRequest regRequest, HttpContext context, AppDbContext db, IPasswordHasher<User> hasher) =>
+{
+    var exists = db.Users.Any(u => u.Login == regRequest.login);
+    if(exists) return Results.Conflict("Login is taken");
+
+    var user = new User{ Login = regRequest.login };
+    user.HashedPassword = hasher.HashPassword(user, regRequest.password);
+
+    await db.Users.AddAsync(user);
+    await db.SaveChangesAsync();
+
+    var identity = new ClaimsIdentity(
+        [ 
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()), 
+            new Claim(ClaimTypes.Name, user.Login), 
+            new Claim(ClaimTypes.Role, user.Role)
+        ], CookieAuthenticationDefaults.AuthenticationScheme
+    );
+
+    await context.SignInAsync(new ClaimsPrincipal(identity));
+    
+    return Results.Created();
+}).AllowAnonymous();
+
+app.MapPost("/login", async (LoginRequest logRequest, HttpContext context, AppDbContext db, IPasswordHasher<User> hasher) =>
+{
+    var login = logRequest.login;
+    var user = await db.Users.SingleOrDefaultAsync(u => u.Login == login);
+
+    if(user == null) return Results.Unauthorized();
+
+    var passwordVerification = hasher.VerifyHashedPassword(user, user.HashedPassword, logRequest.password);
+    
+    if(passwordVerification == PasswordVerificationResult.Failed) return Results.Unauthorized();
+
+    var identity = new ClaimsIdentity(
+        [ 
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()), 
+            new Claim(ClaimTypes.Name, user.Login), 
+            new Claim(ClaimTypes.Role, user.Role)
+        ], CookieAuthenticationDefaults.AuthenticationScheme
+    );
+    
+    await context.SignInAsync(new ClaimsPrincipal(identity));
+    return Results.Ok();
+}).AllowAnonymous();
+
+app.MapPost("/logout", async (HttpContext context) =>
+{
+    await context.SignOutAsync();
+    return Results.Ok();
+});
+
+app.MapGet("/me", async (ClaimsPrincipal user) => Results.Ok(new {login = user.Identity!.Name, role = user.FindFirstValue(ClaimTypes.Role)}));
 
 app.MapGet("/documents", async (DocumentService docService) =>
 {
     var docs = await docService.GetDocumentsAsync();
 
     return Results.Ok(docs);
-}).DisableAntiforgery();
+});
 
 app.MapPost(
     "/documents", 
@@ -82,7 +161,7 @@ app.MapPost(
     var doc = await docService.ReprocessFileAsync(id);
 
     return doc is null ? Results.NotFound() : Results.Ok();
-}).DisableAntiforgery();
+});
 
 app.MapGet("/dlq", async (ServiceBusClient serviceBusClient) =>
 {
@@ -101,8 +180,11 @@ app.MapGet("/dlq", async (ServiceBusClient serviceBusClient) =>
         var result = dlqMessages.Select(dlq => new { dlqMessageId = dlq.MessageId, dlqReason = dlq.DeadLetterReason}).ToList();
         return Results.Ok(result);
 
-}).DisableAntiforgery();
+}).RequireAuthorization("AdminOnly");
 
 app.MapDefaultEndpoints();
 
 app.Run();
+
+public record LoginRequest(string login, string password);
+public record RegisterRequest(string login, string password);
