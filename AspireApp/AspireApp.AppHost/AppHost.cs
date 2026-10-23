@@ -47,9 +47,12 @@ var auditService = builder.AddProject<Projects.AspireApp_AuditService>("audit-se
 //     .WithReference(apiService)
 //     .WaitFor(apiService);
 
-builder.AddViteApp("frontend", "../frontend")
+var frontend = builder.AddViteApp("frontend", "../frontend")
 .WithHttpEndpoint(env: "PORT")
 .WithReference(apiService)
 .WithEnvironment("VITE_API_URL", apiService.GetEndpoint("http"));
+
+apiService.WithEnvironment("FrontendUrl", frontend.GetEndpoint("http"));
+
 
 builder.Build().Run();

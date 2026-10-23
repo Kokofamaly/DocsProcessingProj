@@ -1,6 +1,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import './List.css';
+import { apiFetch } from './shared/functions/apiFetch';
 
 export function List() {
 
@@ -14,7 +15,7 @@ export function List() {
 
     const query = useQuery({queryKey: ['docs'], 
         queryFn: async () => { 
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/documents`);
+            const response = await apiFetch('documents');
             if(!response.ok) throw new Error(`Get request failed: ${response.status}`);
             
             const data = await response.json() as documentDto[];
@@ -32,7 +33,7 @@ export function List() {
     const reprocessMutation = useMutation({
         mutationFn: async (documentId: string) => {
 
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/documents/${documentId}/reprocess`, {
+            const response = await apiFetch(`documents/${documentId}/reprocess`, {
                 method: "POST"
             });
 

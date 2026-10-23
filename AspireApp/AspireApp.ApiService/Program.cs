@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
+using DocsProcessingProj.Api.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -44,12 +45,15 @@ builder.AddNpgsqlDbContext<AppDbContext>(AspireResourceNames.Database);
 builder.Services.AddScoped<DocumentService>();
 builder.Services.AddAntiforgery();
 
+var frontendUrl = builder.Configuration["FrontendUrl"]
+    ?? throw new InvalidOperationException("FrontendUrl is not configured.");
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
         policy
-            .WithOrigins(.)
+            .WithOrigins(frontendUrl)
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
@@ -86,6 +90,8 @@ await container.CreateIfNotExistsAsync();
 
 app.MapPost("/register", async (RegisterRequest regRequest, HttpContext context, AppDbContext db, IPasswordHasher<User> hasher) =>
 {
+    if(string.IsNullOrEmpty(regRequest.login) || string.IsNullOrEmpty(regRequest.password)) return Results.BadRequest();
+
     var exists = db.Users.Any(u => u.Login == regRequest.login);
     if(exists) return Results.Conflict("Login is taken");
 
@@ -110,12 +116,15 @@ app.MapPost("/register", async (RegisterRequest regRequest, HttpContext context,
 
 app.MapPost("/login", async (LoginRequest logRequest, HttpContext context, AppDbContext db, IPasswordHasher<User> hasher) =>
 {
+    if(string.IsNullOrEmpty(logRequest.login) || string.IsNullOrEmpty(logRequest.password)) return Results.BadRequest();
+
     var login = logRequest.login;
+    var password = logRequest.password;
     var user = await db.Users.SingleOrDefaultAsync(u => u.Login == login);
 
     if(user == null) return Results.Unauthorized();
 
-    var passwordVerification = hasher.VerifyHashedPassword(user, user.HashedPassword, logRequest.password);
+    var passwordVerification = hasher.VerifyHashedPassword(user, user.HashedPassword, password);
     
     if(passwordVerification == PasswordVerificationResult.Failed) return Results.Unauthorized();
 
@@ -139,29 +148,60 @@ app.MapPost("/logout", async (HttpContext context) =>
 
 app.MapGet("/me", async (ClaimsPrincipal user) => Results.Ok(new {login = user.Identity!.Name, role = user.FindFirstValue(ClaimTypes.Role)}));
 
-app.MapGet("/documents", async (DocumentService docService) =>
+app.MapGet("/documents", async (DocumentService docService, ClaimsPrincipal user) =>
 {
-    var docs = await docService.GetDocumentsAsync();
+    if(!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id))
+        return Results.Unauthorized();
+
+    var docs = await docService.GetDocumentsAsync(id);
 
     return Results.Ok(docs);
 });
 
 app.MapPost(
     "/documents", 
-    async (DocumentService docService, IFormFile file) =>
+    async (DocumentService docService, IFormFile file, ClaimsPrincipal user) =>
     {
-        await docService.PostDocumentAsync(file);
-        return Results.Created();
+        if(!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id))
+            return Results.Unauthorized();
+        
+        try
+        {
+            await docService.PostDocumentAsync(id, file);
+            return Results.Created();
+        }
+        catch(UserDoesNotExistException)
+        {
+            return Results.Unauthorized();
+        }
     }).DisableAntiforgery();
 
 app.MapPost(
-    "/documents/{id}/reprocess", 
-    async (string id, DocumentService docService) =>
-{
-    var doc = await docService.ReprocessFileAsync(id);
+    "/documents/{documentId:guid}/reprocess", 
+    async (Guid documentId, DocumentService docService, ClaimsPrincipal user) =>
+    {   
+        if(!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+            return Results.Unauthorized();
+        try
+        {
+            var doc = await docService.ReprocessFileAsync(userId, documentId);
 
-    return doc is null ? Results.NotFound() : Results.Ok();
-});
+            if(doc == null) return Results.NotFound();
+
+            return Results.Ok(new DocumentResponseDto
+            {
+                Id = doc.Id,
+                FileName = doc.FileName,
+                Status = doc.Status,
+                UploadedAt = doc.UploadedAt
+            });
+        }
+        catch (DocumentAccessDeniedException)
+        {
+            return Results.Forbid();
+        }
+        
+    });
 
 app.MapGet("/dlq", async (ServiceBusClient serviceBusClient) =>
 {
@@ -186,5 +226,4 @@ app.MapDefaultEndpoints();
 
 app.Run();
 
-public record LoginRequest(string login, string password);
-public record RegisterRequest(string login, string password);
+

@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import './Page.css';
+import { apiFetch } from "./shared/functions/apiFetch";
 
 
 export function Page( {children} : {children: ReactNode} ) {
@@ -13,8 +14,7 @@ export function Page( {children} : {children: ReactNode} ) {
         const formData = new FormData();
         formData.append("file", file);
 
-        const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/documents`,
+        const response = await apiFetch("documents",
         {
             method: "POST",
             body: formData,
@@ -31,7 +31,6 @@ export function Page( {children} : {children: ReactNode} ) {
 
     function handleSubmit() {
         if (!file) return;
-
         uploadMutation.mutate(file);
     }
 
