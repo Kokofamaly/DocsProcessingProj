@@ -62,18 +62,29 @@ public class DocumentServiceTests : IDisposable
     [Fact]
     public async Task GetDocumentsAsync_ReturnsDocuments()
     {
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Login = "test",
+            HashedPassword = "password"
+        };
+        
+        _db.Users.Add(user);
+        await _db.SaveChangesAsync();
+
         var document = new Document
         {
             Id = Guid.NewGuid(),
             FileName = "test.pdf",
             Status = DocumentStatus.Pending,
-            BlobName = "test-blob"
+            BlobName = "test-blob",
+            UserId = user.Id
         };
 
         _db.Documents.Add(document);
         await _db.SaveChangesAsync();
 
-        var result = await _service.GetDocumentsAsync();
+        var result = await _service.GetDocumentsAsync(user.Id);
 
         var item = Assert.Single(result);
         Assert.Equal(document.Id, item.Id);
@@ -85,7 +96,17 @@ public class DocumentServiceTests : IDisposable
     [Fact]
     public async Task GetDocumentsAsync_WhenEmpty_ReturnsEmptyList()
     {
-        var result = await _service.GetDocumentsAsync();
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Login = "test",
+            HashedPassword = "password"
+        };
+        
+        _db.Users.Add(user);
+        await _db.SaveChangesAsync();
+        
+        var result = await _service.GetDocumentsAsync(user.Id);
 
         Assert.NotNull(result);
         Assert.Empty(result);
@@ -95,9 +116,19 @@ public class DocumentServiceTests : IDisposable
     [Fact]
     public async Task ReprocessFileAsync_WhenNotFound_ReturnsNull()
     {
-        var id = Guid.NewGuid().ToString();
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Login = "test",
+            HashedPassword = "password"
+        };
+        
+        _db.Users.Add(user);
+        await _db.SaveChangesAsync();
+        
+        var id = Guid.NewGuid();
 
-        var result = await _service.ReprocessFileAsync(id);
+        var result = await _service.ReprocessFileAsync(user.Id, id);
 
         Assert.Null(result);
 
@@ -111,12 +142,23 @@ public class DocumentServiceTests : IDisposable
     [Fact]
     public async Task ReprocessFileAsync_WhenFound_ResetsStatusAndSendsMessage()
     {
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Login = "test",
+            HashedPassword = "password"
+        };
+        
+        _db.Users.Add(user);
+        await _db.SaveChangesAsync();
+
         var document = new Document
         {
             Id = Guid.NewGuid(),
             FileName = "test.pdf",
             Status = DocumentStatus.Pending,
-            BlobName = "test-blob"
+            BlobName = "test-blob",
+            UserId = user.Id
         };
 
         _db.Documents.Add(document);
@@ -125,8 +167,7 @@ public class DocumentServiceTests : IDisposable
         document.Status = (DocumentStatus)1;
         await _db.SaveChangesAsync();
 
-        var result = await _service.ReprocessFileAsync(
-            document.Id.ToString());
+        var result = await _service.ReprocessFileAsync(user.Id, document.Id);
 
         Assert.NotNull(result);
         Assert.Equal(DocumentStatus.Pending, result.Status);
@@ -149,6 +190,7 @@ public class DocumentServiceTests : IDisposable
     [Fact]
     public async Task PostDocumentAsync_ValidFile_UploadsSavesAndSendsMessage()
     {
+
         const string fileName = "test.pdf";
         var bytes = System.Text.Encoding.UTF8.GetBytes("test file content");
 
@@ -165,7 +207,17 @@ public class DocumentServiceTests : IDisposable
             ContentType = "application/pdf"
         };
 
-        var result = await _service.PostDocumentAsync(file);
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Login = "test",
+            HashedPassword = "password"
+        };
+        
+        _db.Users.Add(user);
+        await _db.SaveChangesAsync();
+
+        var result = await _service.PostDocumentAsync(user.Id, file);
 
         Assert.NotEqual(Guid.Empty, result.Id);
         Assert.Equal(fileName, result.FileName);
