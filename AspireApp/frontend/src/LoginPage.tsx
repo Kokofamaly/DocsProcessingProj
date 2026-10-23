@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiFetch } from './shared/functions/apiFetch';
 import { useNavigate } from "react-router-dom";
+import './Auth.css';
 
 export function LoginPage(){
     const [login, setLogin] = useState('');

@@ -66,8 +66,7 @@ public class DocumentProcessor(
             await using var sender = serviceBusClient.CreateSender(
                 AspireResourceNames.ServicBusTopic);
 
-            await sender.SendMessageAsync(
-                new ServiceBusMessage(eventJson));
+            await sender.SendMessageAsync(new ServiceBusMessage(eventJson));
         }
         catch (Exception ex)
         {

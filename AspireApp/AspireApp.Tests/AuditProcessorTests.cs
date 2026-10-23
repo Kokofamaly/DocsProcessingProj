@@ -1,11 +1,22 @@
 using System.Text.Json;
 using AspireApp.AuditService;
 using Azure.Messaging.ServiceBus;
+using CommonData;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
 public class AuditProcessorTests
 {
-    private readonly AuditProcessor _processor = new(NullLogger<AuditProcessor>.Instance);
+    private static AppDbContext CreateDb()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        return new AppDbContext(options);
+    }
+
+    private static AuditProcessor CreateProcessor(AppDbContext db) =>
+        new(NullLogger<AuditProcessor>.Instance, db);
 
     private static ServiceBusReceivedMessage CreateMessage(string body) =>
         ServiceBusModelFactory.ServiceBusReceivedMessage(body: BinaryData.FromString(body));
@@ -14,56 +25,72 @@ public class AuditProcessorTests
         CreateMessage(JsonSerializer.Serialize(new { documentId, eventType }));
 
     [Fact]
-    public void Process_ValidMessage_AuditLogContainsDocumentId()
+    public async Task Process_ValidMessage_SavesDocumentId()
     {
+        await using var db = CreateDb();
         var id = Guid.NewGuid();
 
-        var log = _processor.Process(CreateMessage(id, "DocumentProcessed"));
+        await CreateProcessor(db).Process(CreateMessage(id, "DocumentProcessed"));
 
-        using var json = JsonDocument.Parse(log);
-        Assert.Equal(id, json.RootElement.GetProperty("documentId").GetGuid());
+        var saved = await db.AuditLogs.SingleAsync();
+        Assert.Equal(id, saved.DocumentId);
     }
 
     [Fact]
-    public void Process_ValidMessage_AuditLogContainsEventType()
+    public async Task Process_ValidMessage_SavesEventType()
     {
-        var log = _processor.Process(CreateMessage(Guid.NewGuid(), "DocumentProcessed"));
+        await using var db = CreateDb();
 
-        using var json = JsonDocument.Parse(log);
-        Assert.Equal("DocumentProcessed", json.RootElement.GetProperty("eventType").GetString());
+        await CreateProcessor(db).Process(CreateMessage(Guid.NewGuid(), "DocumentProcessed"));
+
+        var saved = await db.AuditLogs.SingleAsync();
+        Assert.Equal("DocumentProcessed", saved.EventType);
     }
 
     [Fact]
-    public void Process_ValidMessage_AuditLogHasRecentTimestamp()
+    public async Task Process_ValidMessage_SavesRecentTimestamp()
     {
-        var log = _processor.Process(CreateMessage(Guid.NewGuid(), "DocumentProcessed"));
+        await using var db = CreateDb();
 
-        using var json = JsonDocument.Parse(log);
-        var timestamp = json.RootElement.GetProperty("timeStamp").GetDateTimeOffset();
-        Assert.True(DateTimeOffset.UtcNow - timestamp < TimeSpan.FromMinutes(1));
+        await CreateProcessor(db).Process(CreateMessage(Guid.NewGuid(), "DocumentProcessed"));
+
+        var saved = await db.AuditLogs.SingleAsync();
+        Assert.True(DateTimeOffset.UtcNow - saved.Timestamp < TimeSpan.FromMinutes(1));
     }
 
     [Fact]
-    public void Process_PropertyNamesInPascalCase_AreStillParsed()
+    public async Task Process_PropertyNamesInPascalCase_AreStillParsed()
     {
+        await using var db = CreateDb();
         var id = Guid.NewGuid();
         var body = $$"""{"DocumentId":"{{id}}","EventType":"X"}""";
 
-        var log = _processor.Process(CreateMessage(body));
+        await CreateProcessor(db).Process(CreateMessage(body));
 
-        using var json = JsonDocument.Parse(log);
-        Assert.Equal(id, json.RootElement.GetProperty("documentId").GetGuid());
+        var saved = await db.AuditLogs.SingleAsync();
+        Assert.Equal(id, saved.DocumentId);
+        Assert.Equal("X", saved.EventType);
     }
 
     [Fact]
-    public void Process_NullBody_ThrowsInvalidOperation()
+    public async Task Process_NullBody_ThrowsAndSavesNothing()
     {
-        Assert.Throws<InvalidOperationException>(() => _processor.Process(CreateMessage("null")));
+        await using var db = CreateDb();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => CreateProcessor(db).Process(CreateMessage("null")));
+
+        Assert.Empty(db.AuditLogs);
     }
 
     [Fact]
-    public void Process_BrokenJson_ThrowsJsonException()
+    public async Task Process_BrokenJson_ThrowsJsonExceptionAndSavesNothing()
     {
-        Assert.ThrowsAny<JsonException>(() => _processor.Process(CreateMessage("not a json")));
+        await using var db = CreateDb();
+
+        await Assert.ThrowsAnyAsync<JsonException>(
+            () => CreateProcessor(db).Process(CreateMessage("not a json")));
+
+        Assert.Empty(db.AuditLogs);
     }
 }

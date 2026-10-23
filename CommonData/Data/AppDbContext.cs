@@ -7,6 +7,7 @@ public class AppDbContext : DbContext {
     public DbSet<ProcessedDocumentData> ProcessedDocumentDatas { get; set; } = null!;
     public DbSet<Notification> Notifications { get; set; } = null!;
     public DbSet<User> Users { get; set; } = null!;
+    public DbSet<AuditLog> AuditLogs { get; set; } = null!;
 
 
     public AppDbContext() { }

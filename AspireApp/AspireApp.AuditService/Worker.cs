@@ -5,7 +5,7 @@ using CommonData;
 
 namespace AspireApp.AuditService;
 
-public class Worker(ILogger<Worker> logger, ServiceBusClient serviceBusClient, AuditProcessor auditProcessor) : BackgroundService
+public class Worker(ILogger<Worker> logger, ServiceBusClient serviceBusClient, IServiceScopeFactory scopeFactory) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -17,7 +17,10 @@ public class Worker(ILogger<Worker> logger, ServiceBusClient serviceBusClient, A
 
             serviceBusProcessor.ProcessMessageAsync += async args =>
             {
-                auditProcessor.Process(args.Message);
+                using var scope = scopeFactory.CreateScope();
+                var auditProcessor = scope.ServiceProvider.GetRequiredService<AuditProcessor>();
+                
+                await auditProcessor.Process(args.Message);
                 await args.CompleteMessageAsync(args.Message, args.CancellationToken);
             };
 

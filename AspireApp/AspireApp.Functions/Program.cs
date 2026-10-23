@@ -14,6 +14,8 @@ var builder = FunctionsApplication.CreateBuilder(args);
 builder.AddAzureServiceBusClient(AspireResourceNames.ServiceBus);
 builder.AddAzureBlobServiceClient(AspireResourceNames.Blobs);
 builder.AddNpgsqlDbContext<AppDbContext>(AspireResourceNames.Database);
+builder.AddServiceDefaults();
+builder.Services.AddOpenTelemetry().UseFunctionsWorkerDefaults();
 builder.Services.AddScoped<DocumentProcessor>();
 
 builder.ConfigureFunctionsWebApplication();

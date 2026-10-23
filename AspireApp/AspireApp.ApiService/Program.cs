@@ -85,7 +85,10 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi().AllowAnonymous();
 }
 
-var container = app.Services.GetRequiredService<BlobServiceClient>().GetBlobContainerClient(AspireResourceNames.BlobContainerClient);
+var container = 
+app.Services
+    .GetRequiredService<BlobServiceClient>()
+    .GetBlobContainerClient(AspireResourceNames.BlobContainerClient);
 
 await container.CreateIfNotExistsAsync();
 

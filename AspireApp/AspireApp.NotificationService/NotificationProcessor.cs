@@ -11,7 +11,7 @@ public class NotificationProcessor(AppDbContext db)
         var dto = JsonSerializer.Deserialize<MessageDto>(message.Body.ToString(), new JsonSerializerOptions{ PropertyNameCaseInsensitive = true })
                   ?? throw new InvalidOperationException("Invalid message body.");
 
-        var document = await db.Documents.FindAsync([Guid.Parse(dto.DocumentId)], ct)
+        var document = await db.Documents.FindAsync([dto.DocumentId], ct)
                        ?? throw new InvalidOperationException($"Document {dto.DocumentId} not found.");
 
         var notification = new Notification { NotificationMessage = $"{document.FileName} was processed." };

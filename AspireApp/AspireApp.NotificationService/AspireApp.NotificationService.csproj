@@ -17,5 +17,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../../CommonData/CommonData.csproj" />
+    <ProjectReference Include="../AspireApp.ServiceDefaults/AspireApp.ServiceDefaults.csproj" />
   </ItemGroup>
 </Project>

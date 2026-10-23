@@ -37,15 +37,7 @@ var function = builder.AddAzureFunctionsProject<Projects.AspireApp_Functions>("f
     .WithReference(postgresDb);
 
 var notificationService = builder.AddProject<Projects.AspireApp_NotificationService>("notification-service").WithReference(serviceBus).WithReference(postgresDb).WaitFor(postgresDb).WaitFor(apiService).WithExternalHttpEndpoints();
-var auditService = builder.AddProject<Projects.AspireApp_AuditService>("audit-service").WithReference(serviceBus).WaitFor(apiService).WaitFor(serviceBus);
-
-// builder.AddProject<Projects.AspireApp_Web>("webfrontend")
-//     .WithExternalHttpEndpoints()
-//     .WithHttpHealthCheck("/health")
-//     .WithReference(cache)
-//     .WaitFor(cache)
-//     .WithReference(apiService)
-//     .WaitFor(apiService);
+var auditService = builder.AddProject<Projects.AspireApp_AuditService>("audit-service").WithReference(serviceBus).WithReference(postgresDb).WaitFor(postgresDb).WaitFor(apiService).WaitFor(serviceBus);
 
 var frontend = builder.AddViteApp("frontend", "../frontend")
 .WithHttpEndpoint(env: "PORT")
