@@ -5,7 +5,7 @@ var builder = DistributedApplication.CreateBuilder(args);
 // var cache = builder.AddRedis("cache");
 
 
-var postgres = builder.AddPostgres("postgres");
+var postgres = builder.AddPostgres("postgres").WithPgAdmin();
 var postgresDb = postgres.AddDatabase(AspireResourceNames.Database);
 
 var blobs = builder.AddAzureStorage("storage").RunAsEmulator().AddBlobs(AspireResourceNames.Blobs);
