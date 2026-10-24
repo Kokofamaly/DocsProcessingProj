@@ -3,13 +3,13 @@ using CommonData;
 var builder = DistributedApplication.CreateBuilder(args);
 
 
-var postgres = builder.AddPostgres("postgres")/*.WithDataVolume()*/.WithPgAdmin();
+var postgres = builder.AddPostgres("postgres").WithDataVolume().WithPgAdmin();
 var postgresDb = postgres.AddDatabase(AspireResourceNames.Database);
 
 
 var blobs = 
     builder.AddAzureStorage("storage")
-    .RunAsEmulator(/* emulator => emulator.WithDataVolume() */)
+    .RunAsEmulator( emulator => emulator.WithDataVolume() )
     .AddBlobs(AspireResourceNames.Blobs);
 
 
