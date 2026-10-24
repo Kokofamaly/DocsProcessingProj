@@ -18,18 +18,18 @@
 
 ## Технологии
 
-• .NET 10
-• ASP.NET Core Minimal API
-• Aspire
-• Azure Functions
-• Azure Service Bus (эмулятор)
-• Azure Blob Storage (Azurite)
-• PostgreSQL
-• EF Core
-• React
-• TypeScript
-• TanStack Query
-• OpenTelemetry
+- .NET 10
+- ASP.NET Core Minimal API
+- Aspire
+- Azure Functions
+- Azure Service Bus (эмулятор)
+- Azure Blob Storage (Azurite)
+- PostgreSQL
+- EF Core
+- React
+- TypeScript
+- TanStack Query
+- OpenTelemetry
 
 ## Что нужно установить
 
@@ -49,7 +49,7 @@
    ```
    dotnet run --project AspireApp/AspireApp.AppHost
    ```
-3. В консоли должен появиться ссылка Aspire Dashboard. Откройте ее. Дождитесь, пока все ресурсы получат статус `Running` / `Healthy`. Первый запуск долгий: скачиваются образы, эмулятор Service Bus стартует 1–3 минуты.
+3. В консоли должна появиться ссылка Aspire Dashboard. Откройте ее. Дождитесь, пока все ресурсы получат статус `Running` / `Healthy`. Первый запуск долгий: скачиваются образы, эмулятор Service Bus стартует 1–3 минуты.
 4. **Откройте фронтенд по адресу `http://localhost:5000`.**
 
 > Ссылку на фронтенд из дашборда (`*.dev.localhost`) использовать не рекомендуется: браузер может не сохранить cookie авторизации, и вход «не запомнится».
