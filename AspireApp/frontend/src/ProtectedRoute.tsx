@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Navigate, Outlet, useNavigate } from "react-router-dom";
+import { Navigate, Outlet } from "react-router-dom";
 import { apiFetch} from './shared/functions/apiFetch';
 
 export function ProtectedRoute(){
@@ -10,7 +10,7 @@ export function ProtectedRoute(){
 
             return response.ok;
         }, retry: false });
-        
+
     if(query.isLoading) return null;
     if(!query.data){
         return <Navigate to="/login" replace={true} />
