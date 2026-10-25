@@ -25,10 +25,22 @@ builder.Services.AddProblemDetails();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+
+
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options =>
 {
     options.Cookie.HttpOnly = true;
-    options.Cookie.SameSite = SameSiteMode.Lax;
+
+    if(builder.Environment.IsDevelopment())
+    {
+        options.Cookie.SameSite = SameSiteMode.None;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    }
+    else
+    {
+        options.Cookie.SameSite = SameSiteMode.Lax;
+    }
+
     options.Events.OnRedirectToLogin = context => { context.Response.StatusCode = 401; return Task.CompletedTask; };
     options.Events.OnRedirectToAccessDenied = context => { context.Response.StatusCode = 403; return Task.CompletedTask; };
 });
@@ -47,8 +59,7 @@ builder.AddNpgsqlDbContext<AppDbContext>(AspireResourceNames.Database);
 
 builder.Services.AddAntiforgery();
 
-var frontendUrl = builder.Configuration["FrontendUrl"]
-    ?? throw new InvalidOperationException("FrontendUrl is not configured.");
+var frontendUrl = new string[]{ "http://frontend-aspireapp.dev.localhost:5000", "http://localhost:5000" };
 
 builder.Services.AddCors(options =>
 {
@@ -71,6 +82,22 @@ using (var scope = app.Services.CreateScope())
         .GetRequiredService<AppDbContext>();
 
     await db.Database.EnsureCreatedAsync();
+    
+    const string adminLogin = "AdminUser";
+    
+    if(!await db.Users.AnyAsync(u => u.Login == adminLogin))
+    {
+        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>();
+        var adminUser = new User
+        {
+            Id = Guid.NewGuid(),
+            Login = adminLogin,
+            Role = "Admin"
+        };
+        adminUser.HashedPassword = hasher.HashPassword(adminUser, "12345678");
+        await db.Users.AddAsync(adminUser);
+        await db.SaveChangesAsync();
+    }
 }
 
 // Configure the HTTP request pipeline.

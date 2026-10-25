@@ -2,13 +2,17 @@ using CommonData;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-// var cache = builder.AddRedis("cache");
 
-
-var postgres = builder.AddPostgres("postgres");
+var postgres = builder.AddPostgres("postgres").WithDataVolume().WithPgAdmin();
 var postgresDb = postgres.AddDatabase(AspireResourceNames.Database);
 
-var blobs = builder.AddAzureStorage("storage").RunAsEmulator().AddBlobs(AspireResourceNames.Blobs);
+
+var blobs = 
+    builder.AddAzureStorage("storage")
+    .RunAsEmulator( emulator => emulator.WithDataVolume() )
+    .AddBlobs(AspireResourceNames.Blobs);
+
+
 var serviceBus = builder.AddAzureServiceBus(AspireResourceNames.ServiceBus).RunAsEmulator();
 var queue = serviceBus.AddServiceBusQueue(AspireResourceNames.ServiceBusQueue).WithProperties(q =>
 {
@@ -19,7 +23,8 @@ var notificationSubscription = topic.AddServiceBusSubscription(AspireResourceNam
 var auditSubscription = topic.AddServiceBusSubscription(AspireResourceNames.ServicBusTopicAuditSubscription);
 
 
-var apiService = builder.AddProject<Projects.AspireApp_ApiService>("apiservice")
+var apiService = 
+    builder.AddProject<Projects.AspireApp_ApiService>("apiservice")
     .WithReference(blobs)
     .WaitFor(blobs)
     .WithReference(serviceBus)
@@ -29,22 +34,38 @@ var apiService = builder.AddProject<Projects.AspireApp_ApiService>("apiservice")
     .WithHttpHealthCheck("/health");
 
 
-
-var function = builder.AddAzureFunctionsProject<Projects.AspireApp_Functions>("function")
+var function = 
+    builder.AddAzureFunctionsProject<Projects.AspireApp_Functions>("function")
     .WithReference(blobs)
     .WithReference(serviceBus)
     .WaitFor(apiService)
     .WithReference(postgresDb);
 
-var notificationService = builder.AddProject<Projects.AspireApp_NotificationService>("notification-service").WithReference(serviceBus).WithReference(postgresDb).WaitFor(postgresDb).WaitFor(apiService).WithExternalHttpEndpoints();
-var auditService = builder.AddProject<Projects.AspireApp_AuditService>("audit-service").WithReference(serviceBus).WithReference(postgresDb).WaitFor(postgresDb).WaitFor(apiService).WaitFor(serviceBus);
 
-var frontend = builder.AddViteApp("frontend", "../frontend")
-.WithHttpEndpoint(env: "PORT")
-.WithReference(apiService)
-.WithEnvironment("VITE_API_URL", apiService.GetEndpoint("http"));
+var notificationService = 
+    builder.AddProject<Projects.AspireApp_NotificationService>("notification-service")
+    .WithReference(serviceBus)
+    .WaitFor(serviceBus)
+    .WithReference(postgresDb)
+    .WaitFor(postgresDb)
+    .WaitFor(apiService)
+    .WithExternalHttpEndpoints();
 
-apiService.WithEnvironment("FrontendUrl", frontend.GetEndpoint("http"));
+
+var auditService = 
+    builder.AddProject<Projects.AspireApp_AuditService>("audit-service")
+    .WithReference(serviceBus)
+    .WithReference(postgresDb)
+    .WaitFor(postgresDb)
+    .WaitFor(apiService)
+    .WaitFor(serviceBus);
+
+var frontend = 
+    builder.AddViteApp("frontend", "../frontend")
+    .WithHttpEndpoint(port: 5000, env: "PORT")
+    .WithReference(apiService)
+    .WaitFor(apiService)
+    .WithEnvironment("VITE_API_URL", apiService.GetEndpoint("http"));
 
 
 builder.Build().Run();
