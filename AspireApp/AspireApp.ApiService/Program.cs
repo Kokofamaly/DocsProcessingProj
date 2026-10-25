@@ -5,6 +5,14 @@ using Microsoft.Extensions.Azure;
 using System.Text.Json;
 using DocsProcessingProj.Api.DTOs;
 using CommonData;
+using DocsProcessingProj.Api.Services;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Identity;
+using DocsProcessingProj.Api.Models;
+using DocsProcessingProj.Api.Endpoints;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,17 +25,40 @@ builder.Services.AddProblemDetails();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options =>
+{
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Events.OnRedirectToLogin = context => { context.Response.StatusCode = 401; return Task.CompletedTask; };
+    options.Events.OnRedirectToAccessDenied = context => { context.Response.StatusCode = 403; return Task.CompletedTask; };
+});
+builder.Services.AddAuthorizationBuilder()
+.SetFallbackPolicy(
+    new AuthorizationPolicyBuilder()
+    .RequireAuthenticatedUser()
+    .Build()).AddPolicy("AdminOnly", p => p.RequireRole("Admin"));
+
+builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
+builder.Services.AddScoped<DocumentService>();
+
 builder.AddAzureBlobServiceClient(AspireResourceNames.Blobs);
 builder.AddAzureServiceBusClient(AspireResourceNames.ServiceBus);
 builder.AddNpgsqlDbContext<AppDbContext>(AspireResourceNames.Database);
+
+builder.Services.AddAntiforgery();
+
+var frontendUrl = builder.Configuration["FrontendUrl"]
+    ?? throw new InvalidOperationException("FrontendUrl is not configured.");
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
         policy
-            .AllowAnyOrigin()
+            .WithOrigins(frontendUrl)
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 
@@ -45,96 +76,24 @@ using (var scope = app.Services.CreateScope())
 // Configure the HTTP request pipeline.
 app.UseExceptionHandler();
 app.UseCors();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseAntiforgery();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.MapOpenApi().AllowAnonymous();
 }
 
-var container = app.Services.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documents");
+var container = 
+app.Services
+    .GetRequiredService<BlobServiceClient>()
+    .GetBlobContainerClient(AspireResourceNames.BlobContainerClient);
 
 await container.CreateIfNotExistsAsync();
 
-
-app.MapGet("/", () => "API service is running. Navigate to /weatherforecast to see sample data.");
-
-app.MapGet("/documents", async (AppDbContext db) =>
-{
-    var docs = await db.Documents.Select(d => new DocumentResponseDto
-    {
-        Id = d.Id,
-        FileName = d.FileName,
-        Status = d.Status,
-        UploadedAt = d.UploadedAt
-    }).ToListAsync();
-
-    return Results.Ok(docs);
-}).DisableAntiforgery();
-
-app.MapPost(
-    "/documents", 
-    async (
-        BlobServiceClient blobClient, 
-        ServiceBusClient serviceBusClient, 
-        IFormFile file, 
-        AppDbContext db) =>
-    {
-        using var fileContent = file.OpenReadStream();
-
-        var document = new Document
-        {
-            Id = Guid.NewGuid(),
-            FileName = file.FileName,
-            Status = DocumentStatus.Pending,
-        };
-        document.BlobName = document.Id.ToString();
-        
-        await blobClient.GetBlobContainerClient(AspireResourceNames.BlobContainerClient).UploadBlobAsync($"{document.BlobName}", fileContent);
-        await db.Documents.AddAsync(document);
-        await db.SaveChangesAsync();
-
-
-        Console.WriteLine($"API saved DocumentId: {document.Id}");
-        Console.WriteLine(
-        $"API database: {db.Database.GetDbConnection().DataSource} / " +
-        $"{db.Database.GetDbConnection().Database}");
-
-        var queueSender = serviceBusClient.CreateSender(AspireResourceNames.ServiceBusQueue);
-
-        var messageRaw = new { 
-            documentId = document.Id, 
-            blobName = document.BlobName, 
-            uploadedAt = document.UploadedAt 
-        };
-
-        var messageJson = new ServiceBusMessage(JsonSerializer.Serialize(messageRaw));
-
-        await queueSender.SendMessageAsync(messageJson);
-
-        return Results.Created();
-    }).DisableAntiforgery();
-
-app.MapPost(
-    "/documents/{id}/reprocess", 
-    async (
-        string id, 
-        ServiceBusClient serviceBusClient,
-        AppDbContext db) =>
-{
-    var doc = await db.Documents.FindAsync(Guid.Parse(id));
-
-    if(doc == null) return Results.InternalServerError();
-
-    var queueSender = serviceBusClient.CreateSender(AspireResourceNames.ServiceBusQueue);
-
-    var messageRaw = new { documentId = doc.Id, blobName = doc.BlobName, uploadedAt = doc.UploadedAt};
-    var message = new ServiceBusMessage(JsonSerializer.Serialize(messageRaw));
-
-    await queueSender.SendMessageAsync(message);
-
-    return Results.Ok();
-}).DisableAntiforgery();
-
 app.MapDefaultEndpoints();
+app.MapAuthEndpoints();
+app.MapDocumentEndpoints();
 
 app.Run();

@@ -5,34 +5,38 @@ using CommonData;
 
 namespace AspireApp.AuditService;
 
-public class Worker(ILogger<Worker> logger, ServiceBusClient serviceBusClient) : BackgroundService
+public class Worker(ILogger<Worker> logger, ServiceBusClient serviceBusClient, IServiceScopeFactory scopeFactory) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var serviceBusProcessor = serviceBusClient.CreateProcessor(AspireResourceNames.ServicBusTopic, AspireResourceNames.ServicBusTopicAuditSubscription);
-
-        serviceBusProcessor.ProcessMessageAsync += async delegate (ProcessMessageEventArgs args)
+        try
         {
-            var messageBody = JsonSerializer.Deserialize<MessageDto>(args.Message.Body);
-            var auditLog = JsonSerializer.Serialize(new { documentId = messageBody.DocumentId, eventType = messageBody.EventType, timeStamp = DateTimeOffset.UtcNow});
-            logger.LogInformation(auditLog);
-            
-            await args.CompleteMessageAsync(args.Message, args.CancellationToken);
+            var serviceBusProcessor = serviceBusClient.CreateProcessor(
+                AspireResourceNames.ServicBusTopic,
+                AspireResourceNames.ServicBusTopicAuditSubscription);
 
-        };
-        
-        serviceBusProcessor.ProcessErrorAsync += delegate (ProcessErrorEventArgs args)
+            serviceBusProcessor.ProcessMessageAsync += async args =>
+            {
+                using var scope = scopeFactory.CreateScope();
+                var auditProcessor = scope.ServiceProvider.GetRequiredService<AuditProcessor>();
+                
+                await auditProcessor.Process(args.Message);
+                await args.CompleteMessageAsync(args.Message, args.CancellationToken);
+            };
+
+            serviceBusProcessor.ProcessErrorAsync += args =>
+            {
+                logger.LogError(args.Exception.Message);
+                return Task.CompletedTask;
+            };
+
+            await serviceBusProcessor.StartProcessingAsync(stoppingToken);
+            await Task.Delay(Timeout.Infinite, stoppingToken);
+        }
+        catch (Exception ex)
         {
-            logger.LogError(args.Exception.Message);
-            return Task.CompletedTask;
-        };
-
-        await serviceBusProcessor.StartProcessingAsync();
-
-
-        await Task.Delay(Timeout.Infinite, stoppingToken);
-
-
+            logger.LogError(ex.Message);
+            throw;
+        }
     }
 }
-

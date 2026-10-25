@@ -10,7 +10,10 @@ var postgresDb = postgres.AddDatabase(AspireResourceNames.Database);
 
 var blobs = builder.AddAzureStorage("storage").RunAsEmulator().AddBlobs(AspireResourceNames.Blobs);
 var serviceBus = builder.AddAzureServiceBus(AspireResourceNames.ServiceBus).RunAsEmulator();
-var queue = serviceBus.AddServiceBusQueue(AspireResourceNames.ServiceBusQueue);
+var queue = serviceBus.AddServiceBusQueue(AspireResourceNames.ServiceBusQueue).WithProperties(q =>
+{
+    q.MaxDeliveryCount = 3;
+});
 var topic = serviceBus.AddServiceBusTopic(AspireResourceNames.ServicBusTopic);
 var notificationSubscription = topic.AddServiceBusSubscription(AspireResourceNames.ServicBusTopicNotificationSubscription);
 var auditSubscription = topic.AddServiceBusSubscription(AspireResourceNames.ServicBusTopicAuditSubscription);
@@ -34,19 +37,14 @@ var function = builder.AddAzureFunctionsProject<Projects.AspireApp_Functions>("f
     .WithReference(postgresDb);
 
 var notificationService = builder.AddProject<Projects.AspireApp_NotificationService>("notification-service").WithReference(serviceBus).WithReference(postgresDb).WaitFor(postgresDb).WaitFor(apiService).WithExternalHttpEndpoints();
-var auditService = builder.AddProject<Projects.AspireApp_AuditService>("audit-service").WithReference(serviceBus);
+var auditService = builder.AddProject<Projects.AspireApp_AuditService>("audit-service").WithReference(serviceBus).WithReference(postgresDb).WaitFor(postgresDb).WaitFor(apiService).WaitFor(serviceBus);
 
-// builder.AddProject<Projects.AspireApp_Web>("webfrontend")
-//     .WithExternalHttpEndpoints()
-//     .WithHttpHealthCheck("/health")
-//     .WithReference(cache)
-//     .WaitFor(cache)
-//     .WithReference(apiService)
-//     .WaitFor(apiService);
-
-builder.AddViteApp("frontend", "../frontend")
+var frontend = builder.AddViteApp("frontend", "../frontend")
 .WithHttpEndpoint(env: "PORT")
 .WithReference(apiService)
 .WithEnvironment("VITE_API_URL", apiService.GetEndpoint("http"));
+
+apiService.WithEnvironment("FrontendUrl", frontend.GetEndpoint("http"));
+
 
 builder.Build().Run();
