@@ -2,11 +2,15 @@ var builder = DistributedApplication.CreateBuilder(args);
 
 var cache = builder.AddRedis("cache");
 
+var postgres = builder.AddPostgres("postgres");
+var postgresDb = postgres.AddDatabase("documents-db");
+
 var blobs = builder.AddAzureStorage("storage").RunAsEmulator().AddBlobs("blobs");
 var serviceBus = builder.AddAzureServiceBus("messaging").RunAsEmulator();
 var queue = serviceBus.AddServiceBusQueue("documents-queue");
 var topic = serviceBus.AddServiceBusTopic("documents-topic");
-var subscription = topic.AddServiceBusSubscription("notification");
+var notificationSubscription = topic.AddServiceBusSubscription("notification");
+var auditSubscription = topic.AddServiceBusSubscription("audit");
 
 
 var apiService = builder.AddProject<Projects.AspireApp_ApiService>("apiservice")
@@ -14,13 +18,14 @@ var apiService = builder.AddProject<Projects.AspireApp_ApiService>("apiservice")
     .WaitFor(blobs)
     .WithReference(serviceBus)
     .WaitFor(serviceBus)
+    .WithReference(postgresDb)
+    .WaitFor(postgresDb)
     .WithHttpHealthCheck("/health");
 
 var function = builder.AddAzureFunctionsProject<Projects.AspireApp_Functions>("function")
     .WithReference(blobs)
     .WithReference(serviceBus)
     .WaitFor(apiService);
-
 
 // builder.AddProject<Projects.AspireApp_Web>("webfrontend")
 //     .WithExternalHttpEndpoints()
