@@ -2,12 +2,13 @@ using AspireApp.NotificationService;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using CommonData;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHostedService<Worker>();
 
-builder.AddAzureServiceBusClient("messaging");
-builder.AddNpgsqlDbContext<AppDbContext>("documents-db");
+builder.AddAzureServiceBusClient(AspireResourceNames.ServiceBus);
+builder.AddNpgsqlDbContext<AppDbContext>(AspireResourceNames.Database);
 
 var app = builder.Build();
 

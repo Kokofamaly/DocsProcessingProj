@@ -1,4 +1,4 @@
-namespace DocsProcessingProj.Api.Enums;
+namespace CommonData;
 
 public enum DocumentStatus
 {
