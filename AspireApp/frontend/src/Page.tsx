@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import './Page.css';
 import { apiFetch } from "./shared/functions/apiFetch";
+import { LogoutButton } from './LogoutButton';
 
 
 export function Page( {children} : {children: ReactNode} ) {
@@ -37,6 +38,9 @@ export function Page( {children} : {children: ReactNode} ) {
     return (
     <>
         <header>
+            <div className="topbar">
+                <LogoutButton />
+            </div>
             <form onSubmit={(e) => {e.preventDefault(); 
                                 handleSubmit()}}>
                 <input
@@ -60,6 +64,8 @@ export function Page( {children} : {children: ReactNode} ) {
             {uploadMutation.isError && (
             <p>Ошибка: {uploadMutation.error.message}</p>
             )}
+
+            
         </header>
         <hr />
         {children}

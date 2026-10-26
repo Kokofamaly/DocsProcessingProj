@@ -8,6 +8,13 @@ header {
     box-shadow: 0 4px 12px #00000008;
 }
 
+.topbar{
+    max-width: 700px;
+    margin: 20px auto -10px;
+    display: flex;
+    justify-content: flex-end;
+}
+
 form {
     display: flex;
     align-items: center;
