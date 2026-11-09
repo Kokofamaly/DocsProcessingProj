@@ -45,14 +45,25 @@ public class DocumentProcessor(
             var fileSize =
                 downloadedFile.Value.Content.ToMemory().Length;
 
-            await db.ProcessedDocumentDatas.AddAsync(
-                new ProcessedDocumentData
-                {
-                    FileSize = fileSize,
-                    DocumentId = doc.Id,
-                    FileName = doc.FileName
-                });
+            var processedData = await db.ProcessedDocumentDatas.FirstOrDefaultAsync(p => p.DocumentId == doc.Id);
 
+            if(processedData is null)
+            {
+                await db.ProcessedDocumentDatas.AddAsync(
+                    new ProcessedDocumentData
+                    {
+                        FileSize = fileSize,
+                        DocumentId = doc.Id,
+                        FileName = doc.FileName
+                    });
+
+            }
+            else
+            {
+                processedData.FileName = doc.FileName;
+                processedData.FileSize = fileSize;
+            }
+            
             doc.Status = DocumentStatus.Completed;
             await db.SaveChangesAsync();
 
