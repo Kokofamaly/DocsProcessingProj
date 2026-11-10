@@ -1,4 +1,6 @@
 
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Azure;
 using Azure.Messaging.ServiceBus;
@@ -8,6 +10,7 @@ using CommonData;
 using DocsProcessingProj.Api.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Primitives;
 using Moq;
 using Xunit;
@@ -28,6 +31,7 @@ public class DocumentServiceTests : IDisposable
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
             .Options;
 
         _db = new AppDbContext(options);
@@ -72,13 +76,17 @@ public class DocumentServiceTests : IDisposable
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
+        byte[] fileBytes = Encoding.UTF8.GetBytes("Test file data.");
+        var hash = SHA256.HashData(fileBytes);
+
         var document = new Document
         {
             Id = Guid.NewGuid(),
             FileName = "test.pdf",
             Status = DocumentStatus.Pending,
             BlobName = "test-blob",
-            UserId = user.Id
+            UserId = user.Id,
+            FileHash = hash
         };
 
         _db.Documents.Add(document);
@@ -152,13 +160,17 @@ public class DocumentServiceTests : IDisposable
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
+        byte[] fileBytes = Encoding.UTF8.GetBytes("Test file data.");
+        var hash = SHA256.HashData(fileBytes);
+
         var document = new Document
         {
             Id = Guid.NewGuid(),
             FileName = "test.pdf",
             Status = DocumentStatus.Pending,
             BlobName = "test-blob",
-            UserId = user.Id
+            UserId = user.Id,
+            FileHash = hash
         };
 
         _db.Documents.Add(document);

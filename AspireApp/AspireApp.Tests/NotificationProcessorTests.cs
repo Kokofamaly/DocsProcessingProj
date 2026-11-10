@@ -3,6 +3,8 @@ using AspireApp.NotificationService;
 using Azure.Messaging.ServiceBus;
 using CommonData;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
+using System.Security.Cryptography;
 
 public class NotificationServiceTests
 {
@@ -19,7 +21,16 @@ public class NotificationServiceTests
 
     private static async Task<Document> AddDocumentAsync(AppDbContext db, string fileName)
     {
-        var doc = new Document { Id = Guid.NewGuid(), FileName = fileName, BlobName = Guid.NewGuid().ToString() };
+        byte[] fileBytes = Encoding.UTF8.GetBytes("Test file data.");
+        var hash = SHA256.HashData(fileBytes);
+
+        var doc = new Document 
+        { 
+            Id = Guid.NewGuid(), 
+            FileName = fileName, 
+            BlobName = Guid.NewGuid().ToString(),
+            FileHash = hash
+        };
         db.Documents.Add(doc);
         await db.SaveChangesAsync();
         return doc;

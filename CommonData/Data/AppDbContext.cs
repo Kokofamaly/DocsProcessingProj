@@ -16,9 +16,13 @@ public class AppDbContext : DbContext {
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
         modelBuilder.Entity<Document>().HasAlternateKey(d => d.BlobName);
+
         modelBuilder.Entity<User>().HasMany(u => u.Documents).WithOne(d => d.User).HasForeignKey(d => d.UserId);
         modelBuilder.Entity<User>().HasIndex(u => u.Login).IsUnique();
+
+        modelBuilder.Entity<ProcessedDocumentData>().HasIndex(p => p.DocumentId).IsUnique();
     }
     
 }
