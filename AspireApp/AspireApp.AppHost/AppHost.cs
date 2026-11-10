@@ -3,7 +3,7 @@ using CommonData;
 var builder = DistributedApplication.CreateBuilder(args);
 
 
-var postgres = builder.AddPostgres("postgres")/*.WithDataVolume()*/.WithPgAdmin();
+var postgres = builder.AddPostgres("postgres").WithDataVolume().WithPgAdmin();
 var postgresDb = postgres.AddDatabase(AspireResourceNames.Database);
 
 
