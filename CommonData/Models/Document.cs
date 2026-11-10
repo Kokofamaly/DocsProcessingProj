@@ -9,4 +9,6 @@ public class Document
     public string BlobName { get; set; } = string.Empty;
     public DocumentStatus Status { get; set; }
     public DateTimeOffset UploadedAt { get; set; } = DateTimeOffset.UtcNow;
+    public byte[] FileHash { get; set; } = null!;
+
 }

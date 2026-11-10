@@ -63,9 +63,8 @@ public class DocumentProcessor(
                 processedData.FileName = doc.FileName;
                 processedData.FileSize = fileSize;
             }
-            
+
             doc.Status = DocumentStatus.Completed;
-            await db.SaveChangesAsync();
 
             var eventJson = JsonSerializer.Serialize(new
             {
@@ -77,20 +76,28 @@ public class DocumentProcessor(
             await using var sender = serviceBusClient.CreateSender(
                 AspireResourceNames.ServicBusTopic);
 
-            await sender.SendMessageAsync(new ServiceBusMessage(eventJson));
+            var busMessage = new ServiceBusMessage(eventJson){ 
+                    MessageId = $"DocProcessed-{doc.Id}"
+                };
+
+            await db.SaveChangesAsync();
+            await sender.SendMessageAsync(busMessage);
+
         }
         catch (Exception ex)
         {
             logger.LogError(
                 ex, "Attempt #{DeliveryCount}: Failed to process", message.DeliveryCount);
 
-            if (doc is not null)
-            {
-                if (message.DeliveryCount >= 3)
-                    doc.Status = DocumentStatus.Failed;
+            if (doc is not null && message.DeliveryCount >= 3)
+                await db.Documents
+                .Where(d => d.Id == doc.Id)
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(
+                        d => d.Status, 
+                        DocumentStatus.Failed
+                        ));
 
-                await db.SaveChangesAsync();
-            }
 
             throw;
         }

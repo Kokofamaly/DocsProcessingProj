@@ -3,7 +3,7 @@ using CommonData;
 var builder = DistributedApplication.CreateBuilder(args);
 
 
-var postgres = builder.AddPostgres("postgres").WithDataVolume().WithPgAdmin();
+var postgres = builder.AddPostgres("postgres")/*.WithDataVolume()*/.WithPgAdmin();
 var postgresDb = postgres.AddDatabase(AspireResourceNames.Database);
 
 
@@ -17,8 +17,14 @@ var serviceBus = builder.AddAzureServiceBus(AspireResourceNames.ServiceBus).RunA
 var queue = serviceBus.AddServiceBusQueue(AspireResourceNames.ServiceBusQueue).WithProperties(q =>
 {
     q.MaxDeliveryCount = 3;
+    q.RequiresDuplicateDetection = true;
+    q.DuplicateDetectionHistoryTimeWindow = TimeSpan.FromMinutes(1);
 });
-var topic = serviceBus.AddServiceBusTopic(AspireResourceNames.ServicBusTopic);
+var topic = serviceBus.AddServiceBusTopic(AspireResourceNames.ServicBusTopic).WithProperties(t =>
+{
+    t.RequiresDuplicateDetection = true;
+    t.DuplicateDetectionHistoryTimeWindow = TimeSpan.FromMinutes(5);
+});
 var notificationSubscription = topic.AddServiceBusSubscription(AspireResourceNames.ServicBusTopicNotificationSubscription);
 var auditSubscription = topic.AddServiceBusSubscription(AspireResourceNames.ServicBusTopicAuditSubscription);
 
