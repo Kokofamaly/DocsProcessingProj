@@ -3,7 +3,7 @@ using CommonData;
 var builder = DistributedApplication.CreateBuilder(args);
 
 
-var postgres = builder.AddPostgres("postgres").WithDataVolume().WithPgAdmin();
+var postgres = builder.AddPostgres("postgres")/*.WithDataVolume()*/.WithPgAdmin();
 var postgresDb = postgres.AddDatabase(AspireResourceNames.Database);
 
 
@@ -65,6 +65,14 @@ var auditService =
     .WaitFor(postgresDb)
     .WaitFor(apiService)
     .WaitFor(serviceBus);
+
+var outboxPublisher =
+    builder.AddProject<Projects.AspireApp_OutboxPublisher>("outbox-publisher")
+    .WithReference(serviceBus)
+    .WithReference(postgresDb)
+    .WaitFor(postgresDb)
+    .WaitFor(serviceBus)
+    .WaitFor(apiService);
 
 var frontend = 
     builder.AddViteApp("frontend", "../frontend")
