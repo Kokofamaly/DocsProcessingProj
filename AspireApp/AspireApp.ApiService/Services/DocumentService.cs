@@ -5,6 +5,7 @@ using Azure.Storage.Blobs;
 using CommonData;
 using DocsProcessingProj.Api.DTOs;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace DocsProcessingProj.Api.Services;
 
@@ -59,9 +60,10 @@ public class DocumentService(AppDbContext db, ServiceBusClient serviceBusClient,
             FileHash = fileHash
         };
 
-        await blobServiceClient
-            .GetBlobContainerClient(AspireResourceNames.BlobContainerClient)
-            .UploadBlobAsync(document.BlobName, fileContent);
+        var blobContainer = blobServiceClient
+            .GetBlobContainerClient(AspireResourceNames.BlobContainerClient);
+
+        await blobContainer.UploadBlobAsync(document.BlobName, fileContent);
 
         var messageRaw = new
         {
@@ -81,9 +83,32 @@ public class DocumentService(AppDbContext db, ServiceBusClient serviceBusClient,
             NextAttemptAt = DateTimeOffset.UtcNow
         });
 
-        await db.SaveChangesAsync();
+        try
+        {
+            await db.SaveChangesAsync();
+            return document;
+        }
+        catch (DbUpdateException ex)
+            when (ex.InnerException is PostgresException
+            {
+                SqlState: PostgresErrorCodes.UniqueViolation
+            })
+        {
+            db.ChangeTracker.Clear();
 
-        return document;
+            var concurrentDocument = await db.Documents
+                .FirstAsync(d =>
+                    d.UserId == userId &&
+                    d.FileHash.SequenceEqual(fileHash));
+
+            concurrentDocument.FileName = file.FileName;
+            concurrentDocument.UploadedAt = DateTimeOffset.UtcNow;
+            
+            await db.SaveChangesAsync();
+            await blobContainer.DeleteBlobIfExistsAsync(document.BlobName);
+
+            return concurrentDocument;
+        }    
     }
 
     public async Task<Document?> ReprocessFileAsync(Guid userId, Guid docId)
@@ -114,31 +139,6 @@ public class DocumentService(AppDbContext db, ServiceBusClient serviceBusClient,
         });
 
         await db.SaveChangesAsync();
-
-        // var strategy = db.Database.CreateExecutionStrategy();
-
-        // await strategy.ExecuteAsync(async () =>
-        // {
-        //     await using var transaction = await db.Database.BeginTransactionAsync();
-
-        //     doc.Status = DocumentStatus.Pending;
-        //     await db.SaveChangesAsync();
-
-        //     await using var queueSender = serviceBusClient.CreateSender(
-        //         AspireResourceNames.ServiceBusQueue);
-
-            
-
-        //     var message = new ServiceBusMessage(
-        //         JsonSerializer.Serialize(messageRaw))
-        //     {
-        //         MessageId = $"DocPending-{doc.Id}-{Guid.NewGuid()}"
-        //     };
-
-        //     await transaction.CommitAsync();
-
-        //     await queueSender.SendMessageAsync(message);
-        // });
 
         return doc;
     }
