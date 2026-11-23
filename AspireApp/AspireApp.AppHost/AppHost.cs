@@ -66,6 +66,14 @@ var auditService =
     .WaitFor(apiService)
     .WaitFor(serviceBus);
 
+var outboxPublisher =
+    builder.AddProject<Projects.AspireApp_OutboxPublisher>("outbox-publisher")
+    .WithReference(serviceBus)
+    .WithReference(postgresDb)
+    .WaitFor(postgresDb)
+    .WaitFor(serviceBus)
+    .WaitFor(apiService);
+
 var frontend = 
     builder.AddViteApp("frontend", "../frontend")
     .WithHttpEndpoint(port: 5000, env: "PORT")

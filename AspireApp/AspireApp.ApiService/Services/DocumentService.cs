@@ -5,6 +5,7 @@ using Azure.Storage.Blobs;
 using CommonData;
 using DocsProcessingProj.Api.DTOs;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace DocsProcessingProj.Api.Services;
 
@@ -25,51 +26,89 @@ public class DocumentService(AppDbContext db, ServiceBusClient serviceBusClient,
 
     public async Task<Document> PostDocumentAsync(Guid userId, IFormFile file)
     {
-        if(!await db.Users.AnyAsync(u => u.Id == userId))
+        if (!await db.Users.AnyAsync(u => u.Id == userId))
             throw new UserDoesNotExistException($"User {userId} does not exist.");
 
-        using var fileContent = file.OpenReadStream();
-        await using var queueSender = serviceBusClient.CreateSender(AspireResourceNames.ServiceBusQueue);
-
-        var document = new Document();
+        await using var fileContent = file.OpenReadStream();
 
         var fileHash = await SHA256.HashDataAsync(fileContent);
-        var stuckedDocument = 
-            await db.Documents
-            .FirstOrDefaultAsync(
-                d => 
-                    d.FileHash.SequenceEqual(fileHash) 
-                    && d.UserId == userId 
-                    && d.Status == DocumentStatus.Pending);
+
+        var existingDocument = await db.Documents
+            .FirstOrDefaultAsync(d =>
+                d.FileHash.SequenceEqual(fileHash) &&
+                d.UserId == userId);
+
+        if (existingDocument is not null)
+        {
+            existingDocument.FileName = file.FileName;
+            existingDocument.UploadedAt = DateTimeOffset.UtcNow;
+
+            await db.SaveChangesAsync();
+
+            return existingDocument;
+        }
 
         fileContent.Position = 0;
 
-        if(stuckedDocument is null)
+        var document = new Document
         {
-            document.Id = Guid.NewGuid();
-            document.FileName = file.FileName;
-            document.Status = DocumentStatus.Pending;
-            document.UserId = userId;
-            document.BlobName = document.Id.ToString();
-            document.FileHash = fileHash;
-            
-            await blobServiceClient.GetBlobContainerClient(AspireResourceNames.BlobContainerClient).UploadBlobAsync(document.BlobName, fileContent);
-            await db.Documents.AddAsync(document);
+            Id = Guid.NewGuid(),
+            FileName = file.FileName,
+            Status = DocumentStatus.Pending,
+            UserId = userId,
+            BlobName = Guid.NewGuid().ToString(),
+            FileHash = fileHash
+        };
+
+        var blobContainer = blobServiceClient
+            .GetBlobContainerClient(AspireResourceNames.BlobContainerClient);
+
+        await blobContainer.UploadBlobAsync(document.BlobName, fileContent);
+
+        var messageRaw = new
+        {
+            documentId = document.Id,
+            blobName = document.BlobName,
+            uploadedAt = document.UploadedAt
+        };
+
+        db.Documents.Add(document);
+
+        db.OutboxMessages.Add(new OutboxMessage
+        {
+            Id = Guid.NewGuid(),
+            Type = "DocumentPending",
+            Payload = JsonSerializer.Serialize(messageRaw),
+            CreatedAt = DateTimeOffset.UtcNow,
+            NextAttemptAt = DateTimeOffset.UtcNow
+        });
+
+        try
+        {
             await db.SaveChangesAsync();
+            return document;
         }
-        else 
-            document = stuckedDocument;
+        catch (DbUpdateException ex)
+            when (ex.InnerException is PostgresException
+            {
+                SqlState: PostgresErrorCodes.UniqueViolation
+            })
+        {
+            db.ChangeTracker.Clear();
 
-        var messageRaw = new { 
-                documentId = document.Id, 
-                blobName = document.BlobName, 
-                uploadedAt = document.UploadedAt 
-            };
+            var concurrentDocument = await db.Documents
+                .FirstAsync(d =>
+                    d.UserId == userId &&
+                    d.FileHash.SequenceEqual(fileHash));
 
-        var messageJson = new ServiceBusMessage(JsonSerializer.Serialize(messageRaw));
+            concurrentDocument.FileName = file.FileName;
+            concurrentDocument.UploadedAt = DateTimeOffset.UtcNow;
+            
+            await db.SaveChangesAsync();
+            await blobContainer.DeleteBlobIfExistsAsync(document.BlobName);
 
-        await queueSender.SendMessageAsync(messageJson);
-        return document;
+            return concurrentDocument;
+        }    
     }
 
     public async Task<Document?> ReprocessFileAsync(Guid userId, Guid docId)
@@ -81,35 +120,25 @@ public class DocumentService(AppDbContext db, ServiceBusClient serviceBusClient,
         if (doc.UserId != userId)
             throw new DocumentAccessDeniedException($"User {userId} is not allowed to reprocess file {doc.Id}");
 
-        var strategy = db.Database.CreateExecutionStrategy();
+        doc.Status = DocumentStatus.Pending;
 
-        await strategy.ExecuteAsync(async () =>
+        var messageRaw = new
         {
-            await using var transaction = await db.Database.BeginTransactionAsync();
+            documentId = doc.Id,
+            blobName = doc.BlobName,
+            uploadedAt = doc.UploadedAt
+        };
 
-            doc.Status = DocumentStatus.Pending;
-            await db.SaveChangesAsync();
-
-            await using var queueSender = serviceBusClient.CreateSender(
-                AspireResourceNames.ServiceBusQueue);
-
-            var messageRaw = new
-            {
-                documentId = doc.Id,
-                blobName = doc.BlobName,
-                uploadedAt = doc.UploadedAt
-            };
-
-            var message = new ServiceBusMessage(
-                JsonSerializer.Serialize(messageRaw))
-            {
-                MessageId = $"DocPending-{doc.Id}"
-            };
-
-            await transaction.CommitAsync();
-
-            await queueSender.SendMessageAsync(message);
+        await db.OutboxMessages.AddAsync(new OutboxMessage
+        {
+            Id = Guid.NewGuid(),
+            Type = "DocumentPending",
+            Payload = JsonSerializer.Serialize(messageRaw),
+            CreatedAt = DateTimeOffset.UtcNow,
+            NextAttemptAt = DateTimeOffset.UtcNow
         });
+
+        await db.SaveChangesAsync();
 
         return doc;
     }

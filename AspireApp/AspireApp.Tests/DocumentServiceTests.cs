@@ -147,8 +147,9 @@ public class DocumentServiceTests : IDisposable
             Times.Never);
     }
 
+    
     [Fact]
-    public async Task ReprocessFileAsync_WhenFound_ResetsStatusAndSendsMessage()
+    public async Task ReprocessFileAsync_WhenFound_ResetsStatusAndCreatesOutboxMessage()
     {
         var user = new User
         {
@@ -156,7 +157,7 @@ public class DocumentServiceTests : IDisposable
             Login = "test",
             HashedPassword = "password"
         };
-        
+
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
@@ -167,16 +168,13 @@ public class DocumentServiceTests : IDisposable
         {
             Id = Guid.NewGuid(),
             FileName = "test.pdf",
-            Status = DocumentStatus.Pending,
+            Status = (DocumentStatus)1,
             BlobName = "test-blob",
             UserId = user.Id,
             FileHash = hash
         };
 
         _db.Documents.Add(document);
-        await _db.SaveChangesAsync();
-
-        document.Status = (DocumentStatus)1;
         await _db.SaveChangesAsync();
 
         var result = await _service.ReprocessFileAsync(user.Id, document.Id);
@@ -188,32 +186,39 @@ public class DocumentServiceTests : IDisposable
         Assert.NotNull(saved);
         Assert.Equal(DocumentStatus.Pending, saved.Status);
 
+
+        var outboxMessage = await _db.OutboxMessages
+            .SingleAsync(x => x.Type == "DocumentPending");
+
+        Assert.NotEqual(Guid.Empty, outboxMessage.Id);
+        Assert.Null(outboxMessage.PublishedAt);
+
+        var payload = JsonDocument.Parse(outboxMessage.Payload);
+
+        Assert.Equal(
+            document.Id,
+            payload.RootElement.GetProperty("documentId").GetGuid());
+
+        Assert.Equal(
+            document.BlobName,
+            payload.RootElement.GetProperty("blobName").GetString());
+
         _sender.Verify(
             x => x.SendMessageAsync(
-                It.Is<ServiceBusMessage>(m =>
-                    JsonDocument.Parse(m.Body.ToString())
-                        .RootElement.GetProperty("documentId")
-                        .GetGuid() == document.Id),
+                It.IsAny<ServiceBusMessage>(),
                 It.IsAny<CancellationToken>()),
-            Times.Once);
+            Times.Never);
     }
-
-
+    
     [Fact]
-    public async Task PostDocumentAsync_ValidFile_UploadsSavesAndSendsMessage()
+    public async Task PostDocumentAsync_ValidFile_UploadsSavesAndCreatesOutboxMessage()
     {
-
         const string fileName = "test.pdf";
-        var bytes = System.Text.Encoding.UTF8.GetBytes("test file content");
+        var bytes = Encoding.UTF8.GetBytes("test file content");
 
         using var stream = new MemoryStream(bytes);
 
-        IFormFile file = new FormFile(
-            stream,
-            0,
-            stream.Length,
-            "file",
-            fileName)
+        IFormFile file = new FormFile(stream, 0, stream.Length, "file", fileName)
         {
             Headers = new HeaderDictionary(),
             ContentType = "application/pdf"
@@ -225,7 +230,7 @@ public class DocumentServiceTests : IDisposable
             Login = "test",
             HashedPassword = "password"
         };
-        
+
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
@@ -234,7 +239,7 @@ public class DocumentServiceTests : IDisposable
         Assert.NotEqual(Guid.Empty, result.Id);
         Assert.Equal(fileName, result.FileName);
         Assert.Equal(DocumentStatus.Pending, result.Status);
-        Assert.Equal(result.Id.ToString(), result.BlobName);
+        Assert.False(string.IsNullOrWhiteSpace(result.BlobName));
 
         var saved = await _db.Documents.FindAsync(result.Id);
         Assert.NotNull(saved);
@@ -251,15 +256,29 @@ public class DocumentServiceTests : IDisposable
                 It.IsAny<CancellationToken>()),
             Times.Once);
 
+        var outboxMessage = await _db.OutboxMessages
+            .SingleAsync(x => x.Type == "DocumentPending");
+
+        Assert.NotEqual(Guid.Empty, outboxMessage.Id);
+        Assert.Null(outboxMessage.PublishedAt);
+
+        var payload = JsonDocument.Parse(outboxMessage.Payload);
+
+        Assert.Equal(
+            result.Id,
+            payload.RootElement.GetProperty("documentId").GetGuid());
+
+        Assert.Equal(
+            result.BlobName,
+            payload.RootElement.GetProperty("blobName").GetString());
+
         _sender.Verify(
             x => x.SendMessageAsync(
-                It.Is<ServiceBusMessage>(m =>
-                    JsonDocument.Parse(m.Body.ToString())
-                        .RootElement.GetProperty("documentId")
-                        .GetGuid() == result.Id),
+                It.IsAny<ServiceBusMessage>(),
                 It.IsAny<CancellationToken>()),
-            Times.Once);
+            Times.Never);
     }
+
 
     public void Dispose()
     {

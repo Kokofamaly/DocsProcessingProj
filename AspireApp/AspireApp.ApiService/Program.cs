@@ -82,6 +82,7 @@ using (var scope = app.Services.CreateScope())
         .GetRequiredService<AppDbContext>();
 
     await db.Database.EnsureCreatedAsync();
+    // await db.Database.MigrateAsync();
     
     const string adminLogin = "AdminUser";
     
